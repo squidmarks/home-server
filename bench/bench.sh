@@ -112,7 +112,7 @@ run_one() {
     --env-file "$ENV_FILE" \
     -e BENCH_URL=http://agent-service-bench:3001 \
     -e BENCH_MONGO_URI="mongodb://bench:$(grep '^BENCH_DB_PASSWORD=' "$ENV_FILE" | cut -d= -f2)@${MONGO_HOST}:27017/witness_bench?authSource=witness_bench" \
-    -e BENCH_RUN_ID="$run_id" -e LLAMA_METRICS_URL="$LLAMA_METRICS_URL" -e BENCH_USER_EMAIL="$BENCH_USER_EMAIL" \
+    -e BENCH_RUN_ID="$run_id" -e LLAMA_METRICS_URL="$LLAMA_METRICS_URL" -e BENCH_USER_EMAIL="$BENCH_USER_EMAIL" -e BENCH_CODE_VERSION="$BENCH_CODE_VERSION" \
     -e BENCH_SIM_MODEL="${BENCH_SIM_MODEL:-}" -e BENCH_JUDGE_MODEL="${BENCH_JUDGE_MODEL:-}" \
     node:22-slim sh -c "npm i --silent --no-audit --no-fund >/dev/null 2>&1 && node run.mjs '$model' '$id'"
   set -e

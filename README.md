@@ -15,6 +15,7 @@ The layout mirrors `~/infra` on the box (`./deploy.sh` copies this repo there).
 | `tailscale/serve.sh` | The `tailscale serve` mapping of every service to a tailnet port. |
 | `env.sh` | The paths and names the scripts assume; override any of them in the environment. |
 | `deploy.sh` | Copies the repo to the box and restarts the bench worker. |
+| `sync-agent-studio.sh` | Copies the agent-studio working tree to the box and stamps it with the commit (`~/agent-studio/.build-info`), which the benchmark records in every result. |
 
 ## Box layout
 
@@ -29,7 +30,8 @@ Every service binds `127.0.0.1` and is published only through `tailscale serve`.
 ## Common tasks
 
 ```bash
-./deploy.sh                                  # copy to the box
+./deploy.sh                                  # copy this repo to the box
+./sync-agent-studio.sh                       # copy the agent-studio code to the box, stamped with its commit
 ssh gpu 'cd ~/infra/home && docker compose up -d'         # apply a change to one stack
 ssh gpu '~/infra/studios/set-investment-model.sh claude-haiku-4-5'   # switch the workbench's router model
 ssh gpu '~/infra/tailscale/serve.sh'         # (re)publish services to the tailnet
