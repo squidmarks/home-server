@@ -34,6 +34,23 @@ up() {
 
 down() { "${COMPOSE[@]}" down >/dev/null 2>&1 || true; }
 
+# Keep the run's database with its other artifacts, so the run can be loaded into a
+# studio later (see inspect.sh). The dump is a few hundred KB.
+archive_db() {
+  local out="results/$1/$2/$3.mongo.gz"
+  if docker exec "$MONGO_CONTAINER" mongodump --uri="$MONGO_URI_ROOT" --db=benchmark_run --archive --gzip > "$out" 2>/dev/null && [ -s "$out" ]; then
+    [ -f "results/$1/$2/$3.json" ] && python3 - "results/$1/$2/$3.json" "$3.mongo.gz" <<'PY'
+import json, sys
+path, name = sys.argv[1:3]
+d = json.load(open(path)); d["archive"] = name
+json.dump(d, open(path, "w"), indent=2)
+PY
+  else
+    echo "warning: could not archive the run database for $2 / $3" >&2
+    rm -f "$out"
+  fi
+}
+
 record_failure() {
   local run_id="$1" model="$2" id="$3" why="$4"
   mkdir -p "results/$run_id/$model"
@@ -58,7 +75,9 @@ run_one() {
   set -e
   mkdir -p "results/$run_id/$model"
   docker logs agent-service-run > "results/$run_id/$model/service-$id.log" 2>&1 || true
+  archive_db "$run_id" "$model" "$id"
   down
+  reset_db || true   # leave the throwaway studio empty
   [ -f "results/$run_id/$model/$id.json" ] || record_failure "$run_id" "$model" "$id" "runner produced no result"
   return 0
 }

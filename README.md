@@ -11,7 +11,7 @@ The layout mirrors `~/infra` on the box (`./deploy.sh` copies this repo there).
 | `mongo/` | The shared MongoDB (compose, and `backup.sh`, a daily verified dump run by cron at 03:15). Also see the file-descriptor note in the compose file. |
 | `mongoku/` | A read-only MongoDB browser, connecting as a `readAnyDatabase` user. |
 | `studios/` | Compose files and setup scripts for the agent studios on this box: `nuc.yml` (Witness), `investment.yml` (the Investment Studio workbench), `investment-run.yml` (the throwaway studio the development benchmark starts per case). |
-| `bench/` | Orchestration for the benchmark: start a clean studio per case, run the runner, save results. Also the job worker (`bench-worker.service`) and the Model Bench UI compose. The benchmark code itself is in agent-studio (`scripts/bench`, `apps/bench-ui`). |
+| `bench/` | Orchestration for the benchmark: start a clean studio per case, run the runner, archive the run's database, save results; `inspect.sh` loads a run into the workbench. Also the job worker (`bench-worker.service`) and the Model Bench UI compose. The benchmark code itself is in agent-studio (`scripts/bench`, `apps/bench-ui`). |
 | `tailscale/serve.sh` | The `tailscale serve` mapping of every service to a tailnet port. |
 | `env.sh` | The paths and names the scripts assume; override any of them in the environment. |
 | `deploy.sh` | Copies the repo to the box and restarts the bench worker. |
@@ -34,6 +34,17 @@ ssh gpu 'cd ~/infra/home && docker compose up -d'         # apply a change to on
 ssh gpu '~/infra/studios/set-investment-model.sh claude-haiku-4-5'   # switch the workbench's router model
 ssh gpu '~/infra/tailscale/serve.sh'         # (re)publish services to the tailnet
 ```
+
+### Looking at a benchmark run in the studio
+
+After each Investment case, `bench/bench-dev.sh` dumps the run's database next to its result (`results/<run>/<model>/<case>.mongo.gz`, a few hundred KB) and empties the throwaway studio, so nothing lingers between cases. To browse a run in the Investment Studio's own UI:
+
+```bash
+ssh gpu '~/infra/bench/inspect.sh load <run> <model> <case>'   # saves the workbench, loads the run
+ssh gpu '~/infra/bench/inspect.sh unload'                      # puts the workbench back
+```
+
+The run used the same dev user and customer as the workbench, so its agents, sessions and panels appear in the normal pages. Loaded **schedules are deleted** so a restored "run daily" agent can never trade the paper account. Anything you do while a run is loaded is discarded on unload. The archives include the studio's seeded connection settings (for example the web-search connection), so treat them as private; they live under the gitignored results folder and are never committed.
 
 Running the benchmark: use **New run** in the Model Bench UI, or on the box
 `BENCH_SIM_MODEL=claude-haiku-4-5 BENCH_JUDGE_MODEL=claude-sonnet-5 ~/infra/bench/run_dev_all.sh claude-sonnet-5`.
