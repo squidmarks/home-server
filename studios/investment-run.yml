@@ -1,0 +1,55 @@
+# Throwaway Investment Studio agent-service used by the development benchmark.
+# Started fresh for every case by scripts/bench/bench-dev.sh, on an EMPTY database
+# (benchmark_run, dropped before each case), so nothing from one run reaches the next.
+# It is separate from the workbench studio (docker-compose.benchmark.yml), which keeps
+# your own agents, panels and sessions. Both use the same Alpaca paper account.
+#
+#   BENCH_MODEL=claude-sonnet-5 docker compose -p benchmark-run \
+#     --env-file benchmark-run.env -f docker-compose.benchmark-run.yml up -d
+name: benchmark-run
+
+services:
+  agent-service-run:
+    image: benchmark-studio-agent-service:latest
+    container_name: agent-service-run
+    restart: "no"
+    mem_limit: 2g
+    ports:
+      - "127.0.0.1:3511:3001"
+    networks: [platform]
+    environment:
+      NODE_ENV: production
+      AGENT_SERVICE_PORT: "3001"
+      LOG_LEVEL: info
+      PROFILES: "@agent-studio/benchmark-engine"
+      DEFAULT_MODEL: ${BENCH_MODEL}
+      ROUTER_MODEL: ${BENCH_MODEL}
+      LOCAL_LLM_BASE_URL: http://172.18.0.1:8090/v1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      MONGO_URI: mongodb://benchmark_run:${BENCHMARK_RUN_DB_PASSWORD}@mongo:27017/?authSource=admin
+      MONGO_DB: benchmark_run
+      BENCHMARK_REQUIRE_AUTH: "false"
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY}
+      MCP_INTERNAL_API_KEY: ${MCP_INTERNAL_API_KEY}
+      STUDIO_PUBLIC_URL: http://127.0.0.1:3511
+      PANELS_PUBLIC_URL: http://127.0.0.1:3511
+      PANEL_TOKEN_SECRET: ${PANEL_TOKEN_SECRET}
+      PANEL_FRAME_ANCESTORS: http://127.0.0.1:3511
+      ALPACA_API_KEY: ${ALPACA_API_KEY}
+      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY}
+      ALPACA_MAX_ORDER_NOTIONAL_USD: ${ALPACA_MAX_ORDER_NOTIONAL_USD:-500}
+      ALPACA_MAX_ORDERS_PER_DAY: ${ALPACA_MAX_ORDERS_PER_DAY:-20}
+      BENCHMARK_CONTEXT_DIR: /guidance
+      ALPACA_KILL_SWITCH: /state/KILL
+      ALPACA_FAULTS_FILE: /state/faults.json
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      MCP_SERVERS: '[{"applicationId":"benchmark-agent-studio","name":"tavily","endpoint":"https://mcp.tavily.com/mcp/","authType":"bearer","authValueEnvVar":"TAVILY_API_KEY"}]'
+      DISABLED_TOOLS: "notify,notify-list-recipients,telegram-*"
+    volumes:
+      - ${RUN_STATE_DIR}:/state
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/profiles/benchmark/engine/src/context:/guidance:ro
+
+networks:
+  platform:
+    external: true

@@ -1,0 +1,175 @@
+# Production deployment for the Witness profile on the home NUC, replacing
+# the Vultr VPS deployment (see DEPLOY_VPS.md for that runbook — this file
+# follows the same trust-boundary pattern: Tailscale, not public TLS/Keycloak,
+# every port bound to 127.0.0.1 only, made reachable via `tailscale serve`).
+#
+# Two differences from docker-compose.vps.yml:
+#   1. Builds images locally (build:, not image:) — the NUC is the same
+#      amd64 architecture as production, so no Docker Hub push/pull round
+#      trip and no QEMU cross-compile like the Mac needed.
+#   2. WITNESS_HOST is server.example.ts.net (the NUC's own Tailscale
+#      hostname), not a dedicated witness-studio hostname — this box is also
+#      the local LLM inference server and will run other services later.
+#
+# Mongo lives in its own standalone stack (~/infra/mongo on the NUC), not
+# here — so redeploying Witness never takes Mongo down for other apps. This
+# joins the `platform` network it publishes itself on to reach it as
+# `mongo:27017`; must already exist (`docker network create platform`,
+# already done when ~/infra/mongo/docker-compose.mongo.yml was first run).
+#
+# Witness's studio front door lives at WITNESS_STUDIO_PORT (3443), not the
+# bare hostname/443 — the root is reserved for a landing page linking out to
+# every app on this box (see ~/infra/homepage). Changing this port means
+# updating the Google OAuth client's login redirect URI too (Console, not
+# here) — see the .env file's comment.
+#
+# Run from ~/agent-studio on the NUC:
+#   docker compose -f docker-compose.nuc.yml --env-file docker-compose.nuc.env up -d --build
+
+name: agent-studio
+
+services:
+  agent-service:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: Dockerfile
+      args:
+        BUILD_VERSION: ${BUILD_VERSION:-dev}
+    restart: unless-stopped
+    mem_limit: 2g
+    ports:
+      - "127.0.0.1:3001:3001"
+    networks:
+      - default
+      - platform
+    environment:
+      # llama-server (host systemd service) binds the `platform` network's
+      # own gateway IP rather than loopback, specifically so containers on
+      # that network — this one included — can reach it directly; a
+      # loopback bind is invisible to every Docker bridge, gateway trick or
+      # not. On the gpu box the platform gateway is 172.18.0.1 and the
+      # "local" provider (LocalProvider, model ids "local-*") uses it below.
+      NODE_ENV: production
+      LOCAL_LLM_BASE_URL: http://172.18.0.1:8090/v1
+      AGENT_SERVICE_PORT: "3001"
+      LOG_LEVEL: info
+      DEFAULT_MODEL: local-qwen3-32b
+      ROUTER_MODEL: local-qwen3-32b
+      PROFILES: "@agent-studio/witness-engine"
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: ${MONGO_DB}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CORS_ORIGINS: https://${WITNESS_HOST}:${WITNESS_STUDIO_PORT}
+      WITNESS_MONGO_URI: ${WITNESS_MONGO_URI}
+      WITNESS_TOKEN_ENCRYPTION_KEY: ${WITNESS_TOKEN_ENCRYPTION_KEY}
+      WITNESS_OAUTH_EDGE_URL: https://${WITNESS_HOST}:8443
+      WITNESS_REQUIRE_AUTH: "false"
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+      PUSHOVER_API_TOKEN: ${PUSHOVER_API_TOKEN}
+      POSTMARK_API_KEY: ${POSTMARK_API_KEY}
+      POSTMARK_FROM_EMAIL: ${POSTMARK_FROM_EMAIL}
+      POSTMARK_FROM_NAME: ${POSTMARK_FROM_NAME}
+      WITNESS_ADMIN_EMAILS: ${WITNESS_ADMIN_EMAILS}
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY}
+      MCP_INTERNAL_API_KEY: ${MCP_INTERNAL_API_KEY}
+      STUDIO_PUBLIC_URL: https://${WITNESS_HOST}:${WITNESS_STUDIO_PORT}
+      PANELS_PUBLIC_URL: ${PANELS_PUBLIC_URL}
+      PANEL_TOKEN_SECRET: ${PANEL_TOKEN_SECRET}
+      PANEL_FRAME_ANCESTORS: https://${WITNESS_HOST}:${WITNESS_STUDIO_PORT}
+
+  studio-web:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: apps/studio-web/Dockerfile
+      args:
+        APP_PROFILE: witness
+        NEXT_PUBLIC_AGENT_SERVICE_URL: https://${WITNESS_HOST}:3001
+        NEXT_PUBLIC_AUTH_ENABLED: "false"
+        NEXT_PUBLIC_APPLICATION_ID: witness-agent-studio
+        NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
+    restart: unless-stopped
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:3003:3000"
+    environment:
+      NODE_ENV: production
+      AGENT_SERVICE_URL: http://agent-service:3001
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: https://${WITNESS_HOST}:${WITNESS_STUDIO_PORT}
+    depends_on:
+      - agent-service
+
+  mcp-server:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: apps/mcp-server/Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:3002:3002"
+    environment:
+      NODE_ENV: production
+      MCP_SERVER_PORT: "3002"
+      LOG_LEVEL: info
+      AGENT_SERVICE_INTERNAL_URL: http://agent-service:3001
+      MCP_INTERNAL_API_KEY: ${MCP_INTERNAL_API_KEY}
+    depends_on:
+      - agent-service
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    mem_limit: 128m
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - mcp-server
+
+  witness-oauth-callback:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: profiles/witness/oauth-callback/Dockerfile
+    restart: unless-stopped
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - default
+      - platform
+    environment:
+      PORT: "8080"
+      WITNESS_MONGO_URI: ${WITNESS_MONGO_URI}
+      WITNESS_TOKEN_ENCRYPTION_KEY: ${WITNESS_TOKEN_ENCRYPTION_KEY}
+      WITNESS_OAUTH_EDGE_URL: https://${WITNESS_HOST}:8443
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    restart: unless-stopped
+    mem_limit: 100m
+    ports:
+      - "127.0.0.1:4180:4180"
+    environment:
+      OAUTH2_PROXY_PROVIDER: google
+      OAUTH2_PROXY_CLIENT_ID: ${WITNESS_LOGIN_GOOGLE_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${WITNESS_LOGIN_GOOGLE_CLIENT_SECRET}
+      OAUTH2_PROXY_REDIRECT_URL: https://${WITNESS_HOST}:${WITNESS_STUDIO_PORT}/oauth2/callback
+      OAUTH2_PROXY_UPSTREAMS: http://studio-web:3000
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_EMAIL_DOMAIN: "*"
+      OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: /etc/oauth2-proxy/emails.txt
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+    volumes:
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/oauth2-proxy-emails.txt:/etc/oauth2-proxy/emails.txt:ro
+    depends_on:
+      - studio-web
+
+networks:
+  default: {}
+  platform:
+    external: true

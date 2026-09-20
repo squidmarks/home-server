@@ -1,0 +1,18 @@
+# Mongoku: web UI for browsing the Mongo server. Connects as the read-only
+# `viewer` user (readAnyDatabase), so it can look but never change anything.
+# Run from ~/infra/mongoku:  docker compose up -d
+# Published to the tailnet with:  sudo tailscale serve --bg --https=3600 http://127.0.0.1:3110
+services:
+  mongoku:
+    image: huggingface/mongoku:latest
+    container_name: mongoku
+    restart: unless-stopped
+    networks: [platform]
+    ports:
+      - "127.0.0.1:3110:3100"
+    environment:
+      MONGOKU_DEFAULT_HOST: mongodb://viewer:${VIEWER_PASSWORD}@mongo:27017/?authSource=admin
+    mem_limit: 512m
+networks:
+  platform:
+    external: true

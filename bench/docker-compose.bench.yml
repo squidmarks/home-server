@@ -1,0 +1,51 @@
+# Isolated agent-service for model benchmarks (started by bench.sh, project "bench").
+#
+# Isolation, deliberately: its own database (witness_bench, restored from a
+# pristine snapshot before every run), NO tenant credentials for Google /
+# Telegram / Pushover / Postmark / MCP, and a random WITNESS_TOKEN_ENCRYPTION_KEY
+# so any connected-account tokens copied into the bench DB cannot be decrypted.
+# The same goes for stored secrets (BENCH_SECRETS_KEY). Real LLM APIs are still used.
+# It runs the same image as production, so it always benchmarks the deployed code.
+services:
+  agent-service-bench:
+    image: agent-studio-agent-service:latest
+    container_name: agent-service-bench
+    restart: "no"
+    mem_limit: 2g
+    ports:
+      - "127.0.0.1:3011:3001"
+    networks: [platform]
+    environment:
+      NODE_ENV: production
+      AGENT_SERVICE_PORT: "3001"
+      LOG_LEVEL: info
+      PROFILES: "@agent-studio/witness-engine"
+      DEFAULT_MODEL: ${BENCH_MODEL}
+      ROUTER_MODEL: ${BENCH_MODEL}
+      MONGO_URI: mongodb://bench:${BENCH_DB_PASSWORD}@mongo:27017/?authSource=witness_bench
+      MONGO_DB: witness_bench
+      WITNESS_MONGO_URI: mongodb://bench:${BENCH_DB_PASSWORD}@mongo:27017/witness_bench?authSource=witness_bench
+      WITNESS_TOKEN_ENCRYPTION_KEY: ${BENCH_TOKEN_KEY}
+      # Random and unrelated to production: secrets copied into the bench DB (Pushover,
+      # Telegram, Tavily, ...) must not be decryptable, so no run can ever use them.
+      SECRETS_ENCRYPTION_KEY: ${BENCH_SECRETS_KEY}
+      WITNESS_REQUIRE_AUTH: "false"
+      WITNESS_ADMIN_EMAILS: bench@example.com
+      MCP_INTERNAL_API_KEY: bench-internal-not-exposed
+      # Required by the Witness plugin at startup; dummies so nothing external
+      # can ever be authenticated to.
+      WITNESS_OAUTH_EDGE_URL: http://127.0.0.1:1
+      GOOGLE_OAUTH_CLIENT_ID: bench-dummy
+      GOOGLE_OAUTH_CLIENT_SECRET: bench-dummy
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL}
+      STUDIO_PUBLIC_URL: http://127.0.0.1:3011
+      # Nothing that reaches a person's own accounts exists in the bench at all:
+      # not merely unauthenticated, but absent, so the router can neither use nor
+      # plan around it. Ids (hyphen or underscore), trailing * = prefix.
+      DISABLED_TOOLS: "drive-*,sheets-*,tiller-*,amazon-gmail-order-lookup,pushover-notify,notify,notify-list-recipients,telegram-*,connected-account-status"
+
+networks:
+  platform:
+    external: true

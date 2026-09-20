@@ -1,0 +1,1163 @@
+{
+ "uid": "studio",
+ "title": "Agent Studio",
+ "description": "Built from what Agent Studio already records in Mongo (requests, tokens, cost, tools). Native app metrics can be added later.",
+ "tags": [
+  "server",
+  "agent-studio"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "15s",
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "editable": true,
+ "graphTooltip": 1,
+ "links": [
+  {
+   "type": "dashboards",
+   "title": "Server dashboards",
+   "tags": [
+    "server"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Requests (24h)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum(studio_window_requests{window=\"24h\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 1,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 0,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Errors (24h)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum(studio_window_requests{window=\"24h\",status=\"error\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 10
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 2,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 3,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Local model share (24h)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * sum(studio_window_requests{window=\"24h\",model=~\"local.*\"}) / sum(studio_window_requests{window=\"24h\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 3,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 6,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Cost (24h)",
+   "description": "Reported API cost; local models cost nothing",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum(studio_window_cost_usd{window=\"24h\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "id": 4,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 9,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Open sessions",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "studio_sessions{state=\"open\"}",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 5,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 12,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Live agents",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "studio_agents{kind=\"live\"}",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 6,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 15,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Last request",
+   "description": "Seconds since the most recent request of any kind",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "time() - max(studio_last_request_timestamp_seconds)",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 7,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 18,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Exporter",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "studio_exporter_up",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "background",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 8,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 21,
+    "y": 0
+   }
+  },
+  {
+   "type": "row",
+   "title": "Traffic",
+   "collapsed": false,
+   "panels": [],
+   "id": 9,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 4
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Requests in the last hour, by model",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum by (model) (studio_window_requests{window=\"1h\"})",
+     "legendFormat": "{{model}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true,
+      "stacking": {
+       "mode": "normal"
+      }
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 10,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 5
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Requests in the last hour, by source",
+   "description": "studio UI, scheduler, Telegram, ...",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum by (source) (studio_window_requests{window=\"1h\"})",
+     "legendFormat": "{{source}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true,
+      "stacking": {
+       "mode": "normal"
+      }
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 11,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 5
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Errors in the last hour",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum by (model) (studio_window_requests{window=\"1h\",status=\"error\"})",
+     "legendFormat": "{{model}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true,
+      "stacking": {
+       "mode": "normal"
+      }
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 12,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 5
+   }
+  },
+  {
+   "type": "row",
+   "title": "Tokens, cost, speed",
+   "collapsed": false,
+   "panels": [],
+   "id": 13,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 13
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Tokens in the last hour",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "studio_window_input_tokens{window=\"1h\"}",
+     "legendFormat": "{{model}} in",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "studio_window_output_tokens{window=\"1h\"}",
+     "legendFormat": "{{model}} out",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 14,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 14
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Cost in the last hour",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "studio_window_cost_usd{window=\"1h\"}",
+     "legendFormat": "{{model}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 15,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 14
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Average request time (last hour)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "studio_window_duration_seconds{window=\"1h\"} / on(model) sum by (model) (studio_window_requests{window=\"1h\"})",
+     "legendFormat": "{{model}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 16,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 14
+   }
+  },
+  {
+   "type": "row",
+   "title": "Behaviour",
+   "collapsed": false,
+   "panels": [],
+   "id": 17,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 22
+   }
+  },
+  {
+   "type": "bargauge",
+   "title": "Top tools (all time)",
+   "description": "Tool calls made by agents",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "topk(15, sum by (tool) (studio_tool_calls_total))",
+     "legendFormat": "{{tool}}",
+     "refId": "A",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "gradient",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "min": 0,
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 18,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 23
+   }
+  },
+  {
+   "type": "bargauge",
+   "title": "Data in the system",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "studio_domain_documents",
+     "legendFormat": "{{collection}}",
+     "refId": "A",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "gradient",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "min": 0,
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 19,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 23
+   }
+  },
+  {
+   "type": "table",
+   "title": "Scheduled jobs",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "studio_scheduled_job_next_run_timestamp_seconds * 1000",
+     "legendFormat": "",
+     "refId": "A",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "showHeader": true,
+    "sortBy": [
+     {
+      "displayName": "Value",
+      "desc": true
+     }
+    ]
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "dateTimeAsLocal"
+    },
+    "overrides": []
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true,
+       "__name__": true,
+       "job": true,
+       "instance": true
+      },
+      "renameByName": {
+       "job": "Job",
+       "Value": "Next run"
+      }
+     }
+    }
+   ],
+   "id": 20,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 23
+   }
+  },
+  {
+   "type": "row",
+   "title": "Agent Studio containers",
+   "collapsed": false,
+   "panels": [],
+   "id": 21,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 31
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "CPU",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"agent-studio-.*|agent-service-bench\"}[2m])) * 100",
+     "legendFormat": "{{name}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 22,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 32
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Memory",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum by (name) (container_memory_working_set_bytes{name=~\"agent-studio-.*|agent-service-bench\"})",
+     "legendFormat": "{{name}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 23,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 32
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Sessions and open items",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "studio_sessions",
+     "legendFormat": "sessions {{state}}",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "studio_open_items",
+     "legendFormat": "open items {{status}}",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 24,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 32
+   }
+  }
+ ]
+}

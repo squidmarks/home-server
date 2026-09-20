@@ -1,0 +1,8 @@
+# Secrets and machine state never go in git
+*.env
+.env
+!*.env.example
+mongo/data/
+mongo/data-*/
+node_modules/
+.DS_Store

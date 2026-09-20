@@ -1,0 +1,27 @@
+:root {
+  --bg: #f5f6f8; --panel: #ffffff; --ink: #1b1f24; --muted: #66707c; --line: #e2e5ea;
+  --up: #2f9e44; --down: #d0355c; --unknown: #adb5bd; --accent: #3b5bdb;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14171c; --panel: #1c2027; --ink: #e8eaee; --muted: #98a2b0; --line: #2b313b; --accent: #7c93f0; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, sans-serif; }
+main { max-width: 900px; margin: 0 auto; padding: 28px 16px 60px; }
+header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+h1 { margin: 0; font-size: 24px; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 26px 0 10px; }
+.note { color: var(--muted); font-size: 12px; margin-left: auto; }
+.grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.card {
+  display: block; text-decoration: none; color: inherit; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+}
+a.card:hover { border-color: var(--accent); }
+.card b { display: block; }
+.card span.desc { color: var(--muted); font-size: 13px; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; background: var(--unknown); vertical-align: middle; }
+.dot.up { background: var(--up); } .dot.down { background: var(--down); }
+.port { float: right; color: var(--muted); font: 12px ui-monospace, Menlo, monospace; }
+details summary { cursor: pointer; }
+.err { background: rgba(208, 53, 92, 0.12); color: var(--down); padding: 10px 14px; border-radius: 8px; }

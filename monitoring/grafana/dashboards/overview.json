@@ -1,0 +1,947 @@
+{
+ "uid": "overview",
+ "title": "Server Overview",
+ "description": "Everything on the server at a glance. Drill into the dashboards from the dropdown above.",
+ "tags": [
+  "server"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "15s",
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "editable": true,
+ "graphTooltip": 1,
+ "links": [
+  {
+   "type": "dashboards",
+   "title": "Server dashboards",
+   "tags": [
+    "server"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Targets up",
+   "description": "Scrape targets reporting healthy (llama needs --metrics)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum(up)",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "background",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 1,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 0,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "GPU busy",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_drm_gpu_busy_percent",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 60
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 2,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 3,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "VRAM used",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * node_drm_memory_vram_used_bytes / node_drm_memory_vram_size_bytes",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 80
+       },
+       {
+        "color": "red",
+        "value": 95
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 3,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 6,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "GPU temp",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "max(node_hwmon_temp_celsius{chip=~\"0000:02.*\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "celsius",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 75
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 4,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 9,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "GPU power",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "max(node_hwmon_power_average_watt{chip=~\"0000:02.*\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "watt",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 5,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 12,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "CPU",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 70
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 6,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 15,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "RAM used",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 75
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 7,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 18,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Disk used /",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 70
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 8,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 21,
+    "y": 0
+   }
+  },
+  {
+   "type": "row",
+   "title": "Compute",
+   "collapsed": false,
+   "panels": [],
+   "id": 9,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 4
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "GPU load and VRAM",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_drm_gpu_busy_percent",
+     "legendFormat": "GPU busy %",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * node_drm_memory_vram_used_bytes / node_drm_memory_vram_size_bytes",
+     "legendFormat": "VRAM used %",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0,
+     "max": 100
+    },
+    "overrides": []
+   },
+   "id": 10,
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 5
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "CPU and memory",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100",
+     "legendFormat": "CPU %",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+     "legendFormat": "RAM used %",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0,
+     "max": 100
+    },
+    "overrides": []
+   },
+   "id": 11,
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 5
+   }
+  },
+  {
+   "type": "row",
+   "title": "Services",
+   "collapsed": false,
+   "panels": [],
+   "id": 12,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 13
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Container CPU",
+   "description": "% of one core, per container",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name!=\"\"}[2m])) * 100",
+     "legendFormat": "{{name}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 13,
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 14
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Container memory",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum by (name) (container_memory_working_set_bytes{name!=\"\"})",
+     "legendFormat": "{{name}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 14,
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 14
+   }
+  },
+  {
+   "type": "row",
+   "title": "Network and disk",
+   "collapsed": false,
+   "panels": [],
+   "id": 15,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 22
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Network (host)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|veth.*|br-.*|docker.*\"}[2m]))",
+     "legendFormat": "in",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum(rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|br-.*|docker.*\"}[2m]))",
+     "legendFormat": "out",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "Bps",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 16,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 23
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Disk I/O",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum(rate(node_disk_read_bytes_total[2m]))",
+     "legendFormat": "read",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum(rate(node_disk_written_bytes_total[2m]))",
+     "legendFormat": "write",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "Bps",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 17,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 23
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Temperatures",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_hwmon_temp_celsius{chip!~\"0000:02.*\"} * on(chip, sensor) group_left(label) (node_hwmon_sensor_label or on(chip, sensor) node_hwmon_temp_celsius * 0)",
+     "legendFormat": "{{chip}} {{sensor}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "celsius",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 18,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 23
+   }
+  }
+ ]
+}

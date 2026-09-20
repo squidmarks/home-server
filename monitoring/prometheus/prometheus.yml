@@ -1,0 +1,37 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: node # host + AMD GPU (drm/hwmon collectors)
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: cadvisor # per-container CPU/memory/network
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  - job_name: mongodb
+    static_configs:
+      - targets: ["mongodb-exporter:9216"]
+
+  - job_name: llama # llama-server needs the --metrics flag; bound to the docker gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["172.18.0.1:8090"]
+
+  - job_name: studio # Agent Studio request history (studio-exporter reads Mongo)
+    static_configs:
+      - targets: ["studio-exporter:9500"]
+
+  - job_name: agent-service # native metrics: LLM calls/latency/tokens, tools, requests
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["agent-studio-agent-service-1:3001"]
+
+  # Add new services here as the server grows: a scrape job here plus a panel
+  # (or dashboard) in grafana/gen_dashboards.py.

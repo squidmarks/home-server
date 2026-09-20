@@ -1,0 +1,1185 @@
+{
+ "uid": "inference",
+ "title": "Inference Server",
+ "description": "llama.cpp on the R9700. Panels marked with --metrics fill in once llama-server is started with that flag.",
+ "tags": [
+  "server",
+  "inference"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "15s",
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "editable": true,
+ "graphTooltip": 1,
+ "links": [
+  {
+   "type": "dashboards",
+   "title": "Server dashboards",
+   "tags": [
+    "server"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Generation speed",
+   "description": "Average tokens/s while generating. Needs llama-server started with --metrics.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "llamacpp:predicted_tokens_seconds",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "id": 1,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 0,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Prompt speed",
+   "description": "Average prompt-processing tokens/s. Needs llama-server started with --metrics.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "llamacpp:prompt_tokens_seconds",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 2,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 3,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Requests running",
+   "description": "Needs llama-server started with --metrics.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "llamacpp:requests_processing",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 3,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 6,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Requests waiting",
+   "description": "Needs llama-server started with --metrics.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "llamacpp:requests_deferred",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 3
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 4,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 9,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "KV cache used",
+   "description": "Needs llama-server started with --metrics.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * llamacpp:kv_cache_usage_ratio",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 70
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 5,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 12,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "VRAM used",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_drm_memory_vram_used_bytes",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 6,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 15,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "GPU temp",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "max(node_hwmon_temp_celsius{chip=~\"0000:02.*\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "celsius",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 75
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 7,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 18,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "GPU power",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "max(node_hwmon_power_average_watt{chip=~\"0000:02.*\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "watt",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 8,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 21,
+    "y": 0
+   }
+  },
+  {
+   "type": "row",
+   "title": "Throughput",
+   "collapsed": false,
+   "panels": [],
+   "id": 9,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 4
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Tokens per second",
+   "description": "Needs llama-server started with --metrics.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "rate(llamacpp:prompt_tokens_total[1m])",
+     "legendFormat": "prompt in",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "rate(llamacpp:tokens_predicted_total[1m])",
+     "legendFormat": "generated out",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 10,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 5
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Requests and slots",
+   "description": "Needs llama-server started with --metrics.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "llamacpp:requests_processing",
+     "legendFormat": "running",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "llamacpp:requests_deferred",
+     "legendFormat": "waiting",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "id": 11,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 5
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "KV cache",
+   "description": "Needs llama-server started with --metrics.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * llamacpp:kv_cache_usage_ratio",
+     "legendFormat": "used %",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0,
+     "max": 100
+    },
+    "overrides": []
+   },
+   "id": 12,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 5
+   }
+  },
+  {
+   "type": "row",
+   "title": "GPU",
+   "collapsed": false,
+   "panels": [],
+   "id": 13,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 13
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "GPU busy",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_drm_gpu_busy_percent",
+     "legendFormat": "busy %",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0,
+     "max": 100
+    },
+    "overrides": []
+   },
+   "id": 14,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 14
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "VRAM",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_drm_memory_vram_used_bytes",
+     "legendFormat": "used",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_drm_memory_vram_size_bytes",
+     "legendFormat": "total",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "id": 15,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 14
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "GPU clock",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_hwmon_freq_freq_mhz{chip=~\"0000:02.*\"}",
+     "legendFormat": "{{sensor}} MHz",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 16,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 14
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "GPU temperatures",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_hwmon_temp_celsius{chip=~\"0000:02.*\"}",
+     "legendFormat": "{{sensor}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "celsius",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 17,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 22
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "GPU power",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_hwmon_power_average_watt{chip=~\"0000:02.*\"}",
+     "legendFormat": "draw",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_hwmon_power_cap_watt{chip=~\"0000:02.*\"}",
+     "legendFormat": "cap",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "watt",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "id": 18,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 22
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "GPU fan",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "node_hwmon_fan_rpm{chip=~\"0000:02.*\"}",
+     "legendFormat": "rpm",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "rpm",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "id": 19,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 22
+   }
+  },
+  {
+   "type": "row",
+   "title": "What Agent Studio sends to it",
+   "collapsed": false,
+   "panels": [],
+   "id": 20,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 30
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Requests to local models (last hour)",
+   "description": "Rolling hour, by who asked (studio UI, scheduler, ...)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum by (source) (studio_window_requests{window=\"1h\",model=~\"local.*\"})",
+     "legendFormat": "{{source}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 21,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 31
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Local tokens (last hour)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum(studio_window_input_tokens{window=\"1h\",model=~\"local.*\"})",
+     "legendFormat": "input",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum(studio_window_output_tokens{window=\"1h\",model=~\"local.*\"})",
+     "legendFormat": "output",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 22,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 31
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Cache share of input tokens",
+   "description": "Share of prompt tokens served from llama.cpp's prompt cache",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * sum(studio_window_cache_read_tokens{window=\"24h\",model=~\"local.*\"}) / sum(studio_window_input_tokens{window=\"24h\",model=~\"local.*\"})",
+     "legendFormat": "cached %",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0,
+     "max": 100
+    },
+    "overrides": []
+   },
+   "id": 23,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 31
+   }
+  }
+ ]
+}

@@ -1,0 +1,19 @@
+# Home page for the server. Run from ~/infra/home:  docker compose up -d
+# Host networking so it can check each service on 127.0.0.1; it listens only on
+# 127.0.0.1:3090 and is published to the tailnet with:
+#   sudo tailscale serve --bg --https=443 http://127.0.0.1:3090
+services:
+  home:
+    image: node:22-slim
+    container_name: home
+    restart: unless-stopped
+    network_mode: host
+    user: "1000:1000"
+    working_dir: /app
+    command: ["node", "server.mjs"]
+    environment:
+      PORT: "3090"
+      HOST: "127.0.0.1"
+    volumes:
+      - ./:/app:ro
+    mem_limit: 128m

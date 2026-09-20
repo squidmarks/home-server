@@ -1,0 +1,104 @@
+# Server monitoring: Prometheus + Grafana with exporters for the host, GPU,
+# containers, MongoDB, the llama.cpp inference server, and Agent Studio.
+#
+# Everything binds to 127.0.0.1 and is published on the tailnet with
+# `tailscale serve` (see setup.sh). Add a capability to the server by adding a
+# scrape job in prometheus/prometheus.yml and a dashboard JSON under
+# grafana/dashboards/ (or extend grafana/gen_dashboards.py).
+#
+# Run from ~/infra/monitoring:  ./setup.sh && docker compose up -d --build
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=90d
+      - --web.enable-lifecycle
+    volumes:
+      # A directory, not a single file: editors/rsync replace files (new inode), which a
+      # single-file bind mount would never see.
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks: [platform]
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      # Tailnet is the trust boundary (same as the rest of this server), so
+      # viewing is open to any tailnet device; editing needs the admin login.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: dark
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/overview.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [platform]
+    depends_on: [prometheus]
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.drm # AMD GPU: busy %, VRAM
+      - --collector.hwmon
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+|snap/.+)($|/)
+    volumes:
+      - /:/host:ro,rslave
+    networks: [platform]
+
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks: [platform]
+
+  mongodb-exporter:
+    image: percona/mongodb_exporter:0.40
+    container_name: mongodb-exporter
+    restart: unless-stopped
+    command:
+      - --mongodb.uri=mongodb://monitor:${MONGO_MONITOR_PASSWORD}@mongo:27017/admin
+      - --collect-all
+      - --compatible-mode
+    networks: [platform]
+
+  studio-exporter:
+    build: ./studio-exporter
+    container_name: studio-exporter
+    restart: unless-stopped
+    environment:
+      MONGO_URI: mongodb://metrics:${STUDIO_METRICS_PASSWORD}@mongo:27017/witness_deployed?authSource=admin
+      MONGO_DB: witness_deployed
+    networks: [platform]
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  platform:
+    external: true

@@ -1,0 +1,30 @@
+# Model Bench review UI (the app itself lives in the agent-studio repo, apps/bench-ui).
+# Reads benchmark results read-only; writes only ratings.json and the job queue in the
+# data dir, and edits cases. Published on 127.0.0.1:3400; the tailnet address is in
+# tailscale/serve.sh.
+#   docker compose -f ~/infra/bench/ui/docker-compose.yml up -d
+name: bench-ui
+services:
+  bench-ui:
+    image: node:22-slim
+    container_name: bench-ui
+    restart: unless-stopped
+    user: "1000:1000"
+    working_dir: /app
+    command: ["node", "server.mjs"]
+    environment:
+      PORT: "3400"
+      RESULTS_DIR: /results
+      DATA_DIR: /data
+      CASES_DIR: /cases
+      BENCH_LIB: /bench-lib
+    volumes:
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/apps/bench-ui:/app:ro
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/scripts/bench/results:/results:ro
+      - ${BENCH_UI_DATA:-${HOME}/infra/bench-ui-data}:/data
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/scripts/bench/cases:/cases
+      # not /lib: that would shadow the container's system libraries
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/scripts/bench/lib:/bench-lib:ro
+    ports:
+      - "127.0.0.1:3400:3400"
+    mem_limit: 256m

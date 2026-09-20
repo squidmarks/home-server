@@ -1,0 +1,1373 @@
+{
+ "uid": "agent-service",
+ "title": "Agent Service (live)",
+ "description": "Native metrics from the agent-service (/metrics): what only the running service knows.",
+ "tags": [
+  "server",
+  "agent-studio"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "version": 1,
+ "refresh": "15s",
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "editable": true,
+ "graphTooltip": 1,
+ "links": [
+  {
+   "type": "dashboards",
+   "title": "Server dashboards",
+   "tags": [
+    "server"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "annotations": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "stat",
+   "title": "Requests running",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "agent_service_requests_in_flight",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 3
+       },
+       {
+        "color": "red",
+        "value": 8
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 1,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 0,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Connected clients",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "agent_service_sockets_connected",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 2,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 3,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "LLM calls / min",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "60 * sum(rate(agent_service_llm_calls_total[5m]))",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "id": 3,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 6,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "LLM error rate",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * sum(rate(agent_service_llm_calls_total{outcome=\"error\"}[15m])) / clamp_min(sum(rate(agent_service_llm_calls_total[15m])), 0.001)",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 10
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "id": 4,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 9,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Tool error rate",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * sum(rate(agent_service_tool_calls_total{outcome=\"error\"}[15m])) / clamp_min(sum(rate(agent_service_tool_calls_total[15m])), 0.001)",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 5
+       },
+       {
+        "color": "red",
+        "value": 20
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "id": 5,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 12,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Event loop lag p99",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "agent_service_nodejs_eventloop_lag_p99_seconds * 1000",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ms",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 50
+       },
+       {
+        "color": "red",
+        "value": 250
+       }
+      ]
+     },
+     "noValue": "n/a",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "id": 6,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 15,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Heap used",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "agent_service_nodejs_heap_size_used_bytes",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 7,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 18,
+    "y": 0
+   }
+  },
+  {
+   "type": "stat",
+   "title": "Uptime",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "time() - agent_service_process_start_time_seconds",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "colorMode": "value",
+    "graphMode": "area",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "textMode": "auto"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       }
+      ]
+     },
+     "noValue": "n/a"
+    },
+    "overrides": []
+   },
+   "id": 8,
+   "gridPos": {
+    "h": 4,
+    "w": 3,
+    "x": 21,
+    "y": 0
+   }
+  },
+  {
+   "type": "row",
+   "title": "LLM calls",
+   "collapsed": false,
+   "panels": [],
+   "id": 9,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 4
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Calls per minute by model",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "60 * sum by (model, outcome) (rate(agent_service_llm_calls_total[3m]))",
+     "legendFormat": "{{model}} {{outcome}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true,
+      "stacking": {
+       "mode": "normal"
+      }
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 10,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 5
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Call latency (p50 / p95)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "histogram_quantile(0.5, sum by (le, model) (rate(agent_service_llm_call_duration_seconds_bucket[5m])))",
+     "legendFormat": "{{model}} p50",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "histogram_quantile(0.95, sum by (le, model) (rate(agent_service_llm_call_duration_seconds_bucket[5m])))",
+     "legendFormat": "{{model}} p95",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 11,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 5
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Time to first token (p50 / p95)",
+   "description": "Streaming calls only",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "histogram_quantile(0.5, sum by (le, model) (rate(agent_service_llm_time_to_first_token_seconds_bucket[5m])))",
+     "legendFormat": "{{model}} p50",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "histogram_quantile(0.95, sum by (le, model) (rate(agent_service_llm_time_to_first_token_seconds_bucket[5m])))",
+     "legendFormat": "{{model}} p95",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 12,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 5
+   }
+  },
+  {
+   "type": "row",
+   "title": "Tokens",
+   "collapsed": false,
+   "panels": [],
+   "id": 13,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 13
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Tokens per second",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum by (model, type) (rate(agent_service_llm_tokens_total[3m]))",
+     "legendFormat": "{{model}} {{type}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 14,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 14
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Prompt cache hit share",
+   "description": "Share of prompt tokens served from the provider's cache",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "100 * sum by (model) (rate(agent_service_llm_tokens_total{type=\"cache_read\"}[10m])) / sum by (model) (rate(agent_service_llm_tokens_total{type=~\"input|cache_read|cache_creation\"}[10m]))",
+     "legendFormat": "{{model}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0,
+     "max": 100
+    },
+    "overrides": []
+   },
+   "id": 15,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 14
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Output tokens per LLM call",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "sum by (model) (rate(agent_service_llm_tokens_total{type=\"output\"}[10m])) / sum by (model) (rate(agent_service_llm_calls_total{outcome=\"success\"}[10m]))",
+     "legendFormat": "{{model}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 16,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 14
+   }
+  },
+  {
+   "type": "row",
+   "title": "Tools",
+   "collapsed": false,
+   "panels": [],
+   "id": 17,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 22
+   }
+  },
+  {
+   "type": "bargauge",
+   "title": "Most-used tools (last hour)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "topk(12, sum by (tool) (increase(agent_service_tool_calls_total[1h])))",
+     "legendFormat": "{{tool}}",
+     "refId": "A",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "gradient",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "min": 0,
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 18,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 23
+   }
+  },
+  {
+   "type": "bargauge",
+   "title": "Tool errors (last hour)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "topk(12, sum by (tool) (increase(agent_service_tool_calls_total{outcome=\"error\"}[1h])) > 0)",
+     "legendFormat": "{{tool}}",
+     "refId": "A",
+     "instant": true,
+     "range": false
+    }
+   ],
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "gradient",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "min": 0,
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 19,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 23
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Slowest tools (p95)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "topk(6, histogram_quantile(0.95, sum by (le, tool) (rate(agent_service_tool_call_duration_seconds_bucket[15m]))))",
+     "legendFormat": "{{tool}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 20,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 23
+   }
+  },
+  {
+   "type": "row",
+   "title": "Requests",
+   "collapsed": false,
+   "panels": [],
+   "id": 21,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 31
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "AI requests per minute",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "60 * sum by (source, status) (rate(agent_service_ai_requests_total[5m]))",
+     "legendFormat": "{{source}} {{status}}",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true,
+      "stacking": {
+       "mode": "normal"
+      }
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 22,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 32
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Request duration (p50 / p95)",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "histogram_quantile(0.5, sum by (le, source) (rate(agent_service_ai_request_duration_seconds_bucket[15m])))",
+     "legendFormat": "{{source}} p50",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "histogram_quantile(0.95, sum by (le, source) (rate(agent_service_ai_request_duration_seconds_bucket[15m])))",
+     "legendFormat": "{{source}} p95",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 23,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 32
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Running requests and clients",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "agent_service_requests_in_flight",
+     "legendFormat": "requests running",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "agent_service_sockets_connected",
+     "legendFormat": "clients connected",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "id": 24,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 32
+   }
+  },
+  {
+   "type": "row",
+   "title": "Process",
+   "collapsed": false,
+   "panels": [],
+   "id": 25,
+   "gridPos": {
+    "h": 1,
+    "w": 24,
+    "x": 0,
+    "y": 40
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Event loop lag",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "agent_service_nodejs_eventloop_lag_p99_seconds * 1000",
+     "legendFormat": "p99",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "agent_service_nodejs_eventloop_lag_mean_seconds * 1000",
+     "legendFormat": "mean",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "ms",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "id": 26,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 0,
+    "y": 41
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "Memory",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "agent_service_nodejs_heap_size_used_bytes",
+     "legendFormat": "heap used",
+     "refId": "A"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "agent_service_process_resident_memory_bytes",
+     "legendFormat": "resident",
+     "refId": "B"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "bytes",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data"
+    },
+    "overrides": []
+   },
+   "id": 27,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 8,
+    "y": 41
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "CPU",
+   "description": "",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prom"
+   },
+   "targets": [
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prom"
+     },
+     "expr": "rate(agent_service_process_cpu_seconds_total[2m]) * 100",
+     "legendFormat": "cpu % of one core",
+     "refId": "A"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 15,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "noValue": "no data",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "id": 28,
+   "gridPos": {
+    "h": 8,
+    "w": 8,
+    "x": 16,
+    "y": 41
+   }
+  }
+ ]
+}

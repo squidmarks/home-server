@@ -1,0 +1,11 @@
+[Unit]
+Description=Model bench job worker
+After=docker.service
+[Service]
+User=geoff
+WorkingDirectory=/home/geoff/infra/bench
+ExecStart=/home/geoff/infra/bench/worker.sh
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

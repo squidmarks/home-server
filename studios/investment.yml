@@ -1,0 +1,97 @@
+# Benchmark Agent Studio: a second, separate studio next to Witness on the same
+# box. Its own agent-service, its own web front end, its own database
+# (benchmark_studio in the shared Mongo) and its own secrets. It holds no
+# household data and reaches no personal accounts: its tools are Alpaca PAPER
+# trading (hard-wired, order limits, kill switch) and internet research.
+#
+# Ports (all bound to 127.0.0.1, published to the tailnet with `tailscale serve`):
+#   agent-service 3501 -> https :3501      studio web 3502 -> https :3543
+#
+# Run from ~/agent-studio on the box, after scripts/benchmark-studio/setup.sh:
+#   docker compose -p benchmark-studio -f docker-compose.benchmark.yml --env-file benchmark.env up -d --build
+
+name: benchmark-studio
+
+services:
+  agent-service:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: Dockerfile
+      args:
+        BUILD_VERSION: ${BUILD_VERSION:-dev}
+    image: benchmark-studio-agent-service:latest
+    restart: unless-stopped
+    mem_limit: 2g
+    ports:
+      - "127.0.0.1:3501:3001"
+    networks: [default, platform]
+    environment:
+      NODE_ENV: production
+      AGENT_SERVICE_PORT: "3001"
+      LOG_LEVEL: info
+      PROFILES: "@agent-studio/benchmark-engine"
+      DEFAULT_MODEL: ${BENCHMARK_MODEL:-claude-sonnet-5}
+      ROUTER_MODEL: ${BENCHMARK_MODEL:-claude-sonnet-5}
+      LOCAL_LLM_BASE_URL: http://172.18.0.1:8090/v1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      MONGO_URI: mongodb://benchmark:${BENCHMARK_DB_PASSWORD}@mongo:27017/?authSource=benchmark_studio
+      MONGO_DB: benchmark_studio
+      CORS_ORIGINS: https://${BENCHMARK_HOST}:3543
+      BENCHMARK_REQUIRE_AUTH: "false"
+      BENCHMARK_ADMIN_EMAILS: ${BENCHMARK_ADMIN_EMAILS:-}
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY}
+      MCP_INTERNAL_API_KEY: ${MCP_INTERNAL_API_KEY}
+      STUDIO_PUBLIC_URL: https://${BENCHMARK_HOST}:3543
+      PANELS_PUBLIC_URL: ${PANELS_PUBLIC_URL:-}
+      PANEL_TOKEN_SECRET: ${PANEL_TOKEN_SECRET}
+      PANEL_FRAME_ANCESTORS: https://${BENCHMARK_HOST}:3543
+      # Alpaca PAPER only. The tools refuse every other host, whatever these say.
+      ALPACA_API_KEY: ${ALPACA_API_KEY}
+      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY}
+      ALPACA_MAX_ORDER_NOTIONAL_USD: ${ALPACA_MAX_ORDER_NOTIONAL_USD:-500}
+      ALPACA_MAX_ORDERS_PER_DAY: ${ALPACA_MAX_ORDERS_PER_DAY:-20}
+      BENCHMARK_CONTEXT_DIR: /guidance
+      ALPACA_KILL_SWITCH: /state/KILL
+      ALPACA_FAULTS_FILE: /state/faults.json
+      # Internet research (Tavily) is seeded as an MCP server; the key is read
+      # from TAVILY_API_KEY, never written here.
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      MCP_SERVERS: '[{"applicationId":"benchmark-agent-studio","name":"tavily","endpoint":"https://mcp.tavily.com/mcp/","authType":"bearer","authValueEnvVar":"TAVILY_API_KEY"}]'
+      # This studio has no messaging or email accounts.
+      DISABLED_TOOLS: "notify,notify-list-recipients,telegram-*"
+    volumes:
+      # Kill switch (create /state/KILL to stop all new orders) and scripted
+      # failures for benchmark scenarios.
+      - ${BENCHMARK_STATE_DIR}:/state
+      # The router guidance, read from the repo checkout so it can be tuned by
+      # editing the files and restarting (no rebuild). Every result records its hash.
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/profiles/benchmark/engine/src/context:/guidance:ro
+
+  studio-web:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: apps/studio-web/Dockerfile
+      args:
+        APP_PROFILE: benchmark
+        NEXT_PUBLIC_AGENT_SERVICE_URL: https://${BENCHMARK_HOST}:3501
+        NEXT_PUBLIC_AUTH_ENABLED: "false"
+        NEXT_PUBLIC_APPLICATION_ID: benchmark-agent-studio
+        NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
+    image: benchmark-studio-web:latest
+    restart: unless-stopped
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:3502:3000"
+    environment:
+      NODE_ENV: production
+      AGENT_SERVICE_URL: http://agent-service:3001
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: https://${BENCHMARK_HOST}:3543
+    depends_on:
+      - agent-service
+
+networks:
+  default: {}
+  platform:
+    external: true
