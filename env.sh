@@ -12,3 +12,4 @@ DOCKER_NETWORK="${DOCKER_NETWORK:-platform}"                                # sh
 export LLAMA_METRICS_URL="${LLAMA_METRICS_URL:-http://172.18.0.1:8090/metrics}"
 export RUN_STATE_DIR="${RUN_STATE_DIR:-$ENV_DIR/benchmark-run-state}"
 export BENCHMARK_STATE_DIR="${BENCHMARK_STATE_DIR:-$ENV_DIR/benchmark-state}"
+export BENCH_USER_EMAIL="${BENCH_USER_EMAIL:-geoff.gerhardt@gmail.com}"                # studio user that owns the Witness agents
