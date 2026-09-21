@@ -24,6 +24,11 @@ field() { python3 -c "import json,sys;d=json.load(open('$1'));v=d.get('$2','');p
 run_job() {
   local f="$1" id type; id=$(basename "$f" .json); type=$(field "$f" type)
   local log="$JOBS_DIR/logs/$id.log"
+  # Claim the job before running it: if this worker is restarted mid-job (a deploy,
+  # a reboot), the job must not be picked up and run a second time.
+  local claim="$JOBS_DIR/queue/$id.json.taken"
+  mv "$f" "$claim" || return 0
+  f="$claim"
   setstate "$id" running "{\"startedAt\":\"$(now)\"}"
   local rc=0
   if [ "$type" = "rejudge" ]; then
@@ -58,6 +63,16 @@ PY
   mv "$f" "$JOBS_DIR/queue/$id.json.done"
   if [ $rc -eq 0 ]; then setstate "$id" done "{\"finishedAt\":\"$(now)\"}"; else setstate "$id" failed "{\"finishedAt\":\"$(now)\",\"exitCode\":$rc}"; fi
 }
+
+# A job still claimed at startup was interrupted (the worker died or was restarted).
+# Say so rather than silently leaving it as "running" forever, and never re-run it.
+for taken in "$JOBS_DIR"/queue/*.json.taken; do
+  [ -e "$taken" ] || continue
+  id=$(basename "$taken" .json.taken)
+  echo "job $id was interrupted; leaving it stopped" >&2
+  setstate "$id" failed "{\"finishedAt\":\"$(now)\",\"note\":\"the worker was restarted while this job was running\"}"
+  mv "$taken" "$JOBS_DIR/queue/$id.json.done"
+done
 
 echo "worker watching $JOBS_DIR/queue"
 while true; do
