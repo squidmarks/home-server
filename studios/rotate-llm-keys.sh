@@ -87,8 +87,15 @@ print(re.sub(r"sk-[A-Za-z0-9_*.\-]+","sk-...",m)[:240])' 2>/dev/null)
 }
 if [ -z "${SKIP_KEY_CHECK:-}" ]; then
   echo "Checking the keys with their providers..."
-  [ -z "$ak" ] || check anthropic "$ak"
-  [ -z "$ok" ] || check openai "$ok"
+  bad=0
+  [ -z "$ak" ] || check anthropic "$ak" || bad=1
+  [ -z "$ok" ] || check openai "$ok" || bad=1
+  if [ "$bad" = 1 ]; then
+    echo >&2
+    echo "Nothing was changed. If the message mentions a workspace: create the key inside a workspace in the" >&2
+    echo "provider's console (an unscoped key needs an extra request header that our services don't send)." >&2
+    exit 1
+  fi
 fi
 
 for f in $files; do
