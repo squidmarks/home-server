@@ -45,7 +45,9 @@ services:
       ALPACA_FAULTS_FILE: /state/faults.json
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       MCP_SERVERS: '[{"applicationId":"benchmark-agent-studio","name":"tavily","endpoint":"https://mcp.tavily.com/mcp/","authType":"bearer","authValueEnvVar":"TAVILY_API_KEY"}]'
-      DISABLED_TOOLS: "notify,notify-list-recipients,telegram-*"
+      # No email or messaging accounts here. The two editor tools only ask a browser to open a
+      # panel; a headless benchmark has no browser, so calling one blocks until it times out.
+      DISABLED_TOOLS: "notify,notify-list-recipients,telegram-*,open-agent-editor,open-panel-editor"
     volumes:
       - ${RUN_STATE_DIR}:/state
       - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/profiles/benchmark/engine/src/context:/guidance:ro
