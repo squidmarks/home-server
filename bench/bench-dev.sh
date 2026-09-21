@@ -5,7 +5,10 @@
 # For every case: drop the benchmark_run database, start a new studio agent-service
 # on <model>, run the case (simulated user, rules, judge; the runner also resets the
 # paper account), save the results and the service log, stop the studio.
-# Results land in results/<runId>/<model>/<case>.json.
+# Results land in results/<runId>/<label>/<case>.json, where <label> is the model, plus
+# BENCH_LABEL_SUFFIX when it is run under non-default inference settings:
+#   BENCH_LABEL_SUFFIX=effort-low BENCH_KWARGS='{"reasoning_effort":"low"}' \
+#   BENCH_INFERENCE_JSON='{...}' ./bench-dev.sh run local-qwen3.8-27b inv-order-sizer
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 . "$HERE/../env.sh"
@@ -22,7 +25,7 @@ reset_db() {
 }
 
 up() {
-  BENCH_MODEL="$1" "${COMPOSE[@]}" up -d --force-recreate >/dev/null 2>&1
+  BENCH_MODEL="$1" LOCAL_LLM_CHAT_TEMPLATE_KWARGS="${BENCH_KWARGS:-}" "${COMPOSE[@]}" up -d --force-recreate >/dev/null 2>&1
   for _ in $(seq 1 60); do
     curl -fs http://127.0.0.1:3511/health >/dev/null 2>&1 && { echo "studio up (router model $1)"; return; }
     sleep 2
@@ -61,8 +64,9 @@ record_failure() {
 
 run_one() {
   local model="$1" id="$2" run_id="$3"
-  if ! reset_db; then record_failure "$run_id" "$model" "$id" "could not reset the benchmark database"; return 0; fi
-  if ! (up "$model"); then record_failure "$run_id" "$model" "$id" "studio failed to start"; down; return 0; fi
+  local label="$model${BENCH_LABEL_SUFFIX:+--$BENCH_LABEL_SUFFIX}"
+  if ! reset_db; then record_failure "$run_id" "$label" "$id" "could not reset the benchmark database"; return 0; fi
+  if ! (up "$model"); then record_failure "$run_id" "$label" "$id" "studio failed to start"; down; return 0; fi
   set +e
   docker run --rm --network "$DOCKER_NETWORK" -v "$PWD":/bench -v "$GUIDANCE_DIR":/guidance:ro -w /bench \
     --user "$(id -u):$(id -g)" -e HOME=/tmp -e npm_config_cache=/tmp/.npm \
@@ -70,15 +74,16 @@ run_one() {
     -e BENCH_URL=http://agent-service-run:3001 \
     -e BENCH_MONGO_URI="mongodb://benchmark_run:$(grep '^BENCHMARK_RUN_DB_PASSWORD=' "$ENV_FILE" | cut -d= -f2)@${MONGO_HOST}:27017/benchmark_run?authSource=admin" \
     -e BENCH_RUN_ID="$run_id" -e GUIDANCE_DIR=/guidance -e BENCH_CODE_VERSION="$BENCH_CODE_VERSION" \
+    -e BENCH_MODEL_LABEL="$label" -e BENCH_INFERENCE_JSON="${BENCH_INFERENCE_JSON:-}" \
     -e BENCH_SIM_MODEL="${BENCH_SIM_MODEL:-}" -e BENCH_JUDGE_MODEL="${BENCH_JUDGE_MODEL:-}" \
     node:22-slim sh -c "npm i --silent --no-audit --no-fund >/dev/null 2>&1 && node run-dev.mjs '$model' '$id'"
   set -e
-  mkdir -p "results/$run_id/$model"
-  docker logs agent-service-run > "results/$run_id/$model/service-$id.log" 2>&1 || true
-  archive_db "$run_id" "$model" "$id"
+  mkdir -p "results/$run_id/$label"
+  docker logs agent-service-run > "results/$run_id/$label/service-$id.log" 2>&1 || true
+  archive_db "$run_id" "$label" "$id"
   down
   reset_db || true   # leave the throwaway studio empty
-  [ -f "results/$run_id/$model/$id.json" ] || record_failure "$run_id" "$model" "$id" "runner produced no result"
+  [ -f "results/$run_id/$label/$id.json" ] || record_failure "$run_id" "$label" "$id" "runner produced no result"
   return 0
 }
 
@@ -92,10 +97,11 @@ run() {
   fi
   for id in "${ids[@]}"; do run_one "$model" "$id" "$run_id"; done
   local missing=0
+  local label="$model${BENCH_LABEL_SUFFIX:+--$BENCH_LABEL_SUFFIX}"
   for id in "${ids[@]}"; do
-    [ -f "results/$run_id/$model/$id.json" ] || { echo "MISSING result: $model / $id" >&2; missing=1; }
+    [ -f "results/$run_id/$label/$id.json" ] || { echo "MISSING result: $label / $id" >&2; missing=1; }
   done
-  echo "run id: $run_id ($model: ${#ids[@]} case(s))"
+  echo "run id: $run_id ($label: ${#ids[@]} case(s))"
   return $missing
 }
 

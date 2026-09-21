@@ -25,6 +25,8 @@ services:
       DEFAULT_MODEL: ${BENCH_MODEL}
       ROUTER_MODEL: ${BENCH_MODEL}
       LOCAL_LLM_BASE_URL: http://172.18.0.1:8090/v1
+      # Per-request thinking settings for the local model (JSON), set per run by bench-dev.sh.
+      LOCAL_LLM_CHAT_TEMPLATE_KWARGS: ${LOCAL_LLM_CHAT_TEMPLATE_KWARGS:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       # Needed only for keys that are not scoped to a workspace; leave blank otherwise.
       ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}

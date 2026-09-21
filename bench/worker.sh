@@ -33,9 +33,27 @@ run_job() {
   else
     local runner=./run_all.sh
     [ "$(field "$f" suite)" = "investment" ] && runner=./run_dev_all.sh
-    BENCH_RUN_ID=$(field "$f" run) BENCH_CASES=$(field "$f" cases) \
-    BENCH_SIM_MODEL=$(field "$f" simulator) BENCH_JUDGE_MODEL=$(field "$f" judge) \
-      $runner $(field "$f" models) >"$log" 2>&1 || rc=$?
+    # One pass of the cases per inference condition (a job without any is one default pass).
+    local conds; conds=$(python3 - "$f" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]))
+for c in d.get("conditions") or [{}]:
+    st=c.get("settings") or {}
+    info={**st,"server":d.get("serverLabel") or None,"description":c.get("description") or "server defaults"} if c.get("suffix") else None
+    print(json.dumps({"suffix":c.get("suffix",""),"kwargs":json.dumps(c["kwargs"]) if c.get("kwargs") else "","info":json.dumps(info) if info else ""}))
+PY
+)
+    while IFS= read -r cond; do
+      local suffix kwargs info
+      suffix=$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['suffix'])" "$cond")
+      kwargs=$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['kwargs'])" "$cond")
+      info=$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['info'])" "$cond")
+      echo ">>> inference: ${suffix:-server defaults}" >>"$log"
+      BENCH_RUN_ID=$(field "$f" run) BENCH_CASES=$(field "$f" cases) \
+      BENCH_SIM_MODEL=$(field "$f" simulator) BENCH_JUDGE_MODEL=$(field "$f" judge) \
+      BENCH_LABEL_SUFFIX="$suffix" BENCH_KWARGS="$kwargs" BENCH_INFERENCE_JSON="$info" \
+        $runner $(field "$f" models) >>"$log" 2>&1 || rc=$?
+    done <<< "$conds"
   fi
   mv "$f" "$JOBS_DIR/queue/$id.json.done"
   if [ $rc -eq 0 ]; then setstate "$id" done "{\"finishedAt\":\"$(now)\"}"; else setstate "$id" failed "{\"finishedAt\":\"$(now)\",\"exitCode\":$rc}"; fi
