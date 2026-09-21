@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 HOST="${1:-gpu}"
 rsync -a --exclude '.git/' --exclude '*.env' --exclude '.env' --exclude 'node_modules/' \
   --exclude 'mongo/data*/' ./ "$HOST":infra/
-ssh "$HOST" 'chmod +x ~/infra/bench/*.sh ~/infra/studios/*.sh ~/infra/mongo/*.sh ~/infra/tailscale/*.sh
+ssh "$HOST" 'chmod +x ~/infra/bench/*.sh ~/infra/studios/*.sh ~/infra/mongo/*.sh ~/infra/tailscale/*.sh ~/infra/llama/*.sh
   sudo cp ~/infra/bench/bench-worker.service /etc/systemd/system/bench-worker.service
   sudo systemctl daemon-reload && sudo systemctl restart bench-worker'
 echo "deployed to $HOST:infra. Compose stacks are not restarted; recreate one with, e.g.:"

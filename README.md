@@ -12,6 +12,7 @@ The layout mirrors `~/infra` on the box (`./deploy.sh` copies this repo there).
 | `mongoku/` | A read-only MongoDB browser, connecting as a `readAnyDatabase` user. |
 | `studios/` | Compose files and setup scripts for the agent studios on this box: `nuc.yml` (Witness), `investment.yml` (the Investment Studio workbench), `investment-run.yml` (the throwaway studio the development benchmark starts per case). |
 | `bench/` | Orchestration for the benchmark: start a clean studio per case, run the runner, archive the run's database, save results; `inspect.sh` loads a run into the workbench. Also the job worker (`bench-worker.service`) and the Model Bench UI compose. The benchmark code itself is in agent-studio (`scripts/bench`, `apps/bench-ui`). |
+| `llama/profiles.sh` | The local model server as named profiles (which model file, speculative decoding, KV cache). `set <name>` rewrites the systemd unit and restarts; the name is what a benchmark run records as its server setup. |
 | `tailscale/serve.sh` | The `tailscale serve` mapping of every service to a tailnet port. |
 | `env.sh` | The paths and names the scripts assume; override any of them in the environment. |
 | `deploy.sh` | Copies the repo to the box and restarts the bench worker. |
@@ -35,6 +36,8 @@ Every service binds `127.0.0.1` and is published only through `tailscale serve`.
 ssh gpu 'cd ~/infra/home && docker compose up -d'         # apply a change to one stack
 ssh gpu '~/infra/studios/set-investment-model.sh claude-haiku-4-5'   # switch the workbench's router model
 ssh gpu '~/infra/tailscale/serve.sh'         # (re)publish services to the tailnet
+ssh gpu '~/infra/llama/profiles.sh list'     # model server profiles, and which one is running
+ssh gpu '~/infra/llama/profiles.sh set mtp3' # switch it (restarts llama-server, waits for the model)
 ```
 
 ### Looking at a benchmark run in the studio
