@@ -68,7 +68,7 @@ run_one() {
   if ! reset_db; then record_failure "$run_id" "$label" "$id" "could not reset the benchmark database"; return 0; fi
   if ! (up "$model"); then record_failure "$run_id" "$label" "$id" "studio failed to start"; down; return 0; fi
   set +e
-  docker run --rm --network "$DOCKER_NETWORK" -v "$PWD":/bench -v "$GUIDANCE_DIR":/guidance:ro -w /bench \
+  docker run --rm --name bench-runner --network "$DOCKER_NETWORK" -v "$PWD":/bench -v "$GUIDANCE_DIR":/guidance:ro -w /bench \
     --user "$(id -u):$(id -g)" -e HOME=/tmp -e npm_config_cache=/tmp/.npm \
     --env-file "$ENV_FILE" \
     -e BENCH_URL=http://agent-service-run:3001 \
