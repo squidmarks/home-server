@@ -68,12 +68,22 @@ fi
 
 # The key goes to curl on stdin as config, so it never appears in a process list.
 check() { # provider key
-  local code
+  local out code body msg
   case "$1" in
-    anthropic) code=$(printf 'header = "x-api-key: %s"\nheader = "anthropic-version: 2023-06-01"\n' "$2" | curl -s -o /dev/null -w '%{http_code}' -K - https://api.anthropic.com/v1/models) ;;
-    openai)    code=$(printf 'header = "Authorization: Bearer %s"\n' "$2" | curl -s -o /dev/null -w '%{http_code}' -K - https://api.openai.com/v1/models) ;;
+    anthropic) out=$(printf 'header = "x-api-key: %s"\nheader = "anthropic-version: 2023-06-01"\n' "$2" | curl -s -w '\n%{http_code}' -K - https://api.anthropic.com/v1/models) ;;
+    openai)    out=$(printf 'header = "Authorization: Bearer %s"\n' "$2" | curl -s -w '\n%{http_code}' -K - https://api.openai.com/v1/models) ;;
   esac
-  [ "$code" = "200" ] && echo "  $1: accepted" || { echo "  $1: NOT accepted (HTTP $code); nothing was changed" >&2; return 1; }
+  code=${out##*$'\n'}; body=${out%$'\n'*}
+  if [ "$code" = "200" ]; then echo "  $1: accepted"; return 0; fi
+  # The provider's own explanation (never the key: anything key-shaped is masked).
+  msg=$(printf '%s' "$body" | python3 -c 'import sys,json,re
+try:
+    d=json.load(sys.stdin); e=d.get("error",d); m=e.get("message","") if isinstance(e,dict) else str(e)
+except Exception:
+    m=""
+print(re.sub(r"sk-[A-Za-z0-9_*.\-]+","sk-...",m)[:240])' 2>/dev/null)
+  echo "  $1: NOT accepted (HTTP $code)${msg:+: $msg}; nothing was changed" >&2
+  return 1
 }
 if [ -z "${SKIP_KEY_CHECK:-}" ]; then
   echo "Checking the keys with their providers..."
