@@ -60,6 +60,8 @@ services:
       MONGO_DB: ${MONGO_DB}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Needed only for keys that are not scoped to a workspace; leave blank otherwise.
+      ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
       CORS_ORIGINS: https://${WITNESS_HOST}:${WITNESS_STUDIO_PORT}
       WITNESS_MONGO_URI: ${WITNESS_MONGO_URI}
       WITNESS_TOKEN_ENCRYPTION_KEY: ${WITNESS_TOKEN_ENCRYPTION_KEY}

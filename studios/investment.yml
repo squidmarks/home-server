@@ -34,6 +34,8 @@ services:
       ROUTER_MODEL: ${BENCHMARK_MODEL:-claude-sonnet-5}
       LOCAL_LLM_BASE_URL: http://172.18.0.1:8090/v1
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Needed only for keys that are not scoped to a workspace; leave blank otherwise.
+      ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       MONGO_URI: mongodb://benchmark:${BENCHMARK_DB_PASSWORD}@mongo:27017/?authSource=benchmark_studio
       MONGO_DB: benchmark_studio
