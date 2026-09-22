@@ -19,11 +19,21 @@
 #   prefill     cachereuse   --cache-reuse 256: reuse a common prefix by KV shifting
 #               ctx32k|64k   a smaller KV allocation than the 128K default
 #               ub1024|2048  a larger physical batch for prompt processing
+#   sampling    temp0        --temp 0: greedy, so the same input takes the same path
 #
 # The prefill modifiers exist because prompt processing is where the time actually
 # goes: 45% and then 63% of the time inside the model on two measured benchmark
 # cases, producing no tokens at all. Every earlier experiment here tuned decode,
 # which is the smaller half.
+#
+# temp0 exists because nothing was ever setting a temperature: the router sends
+# none and llama.cpp's own default is 0.80, so every run sampled creatively and
+# wandered down a different path. In each set of repeats measured on 2026-09-22 the
+# slowest run was the one that made the MOST tool calls (482 s / 16 calls against
+# 317 s / 10 on the same cell), so the spread we were averaging out with three
+# repeats was mostly of our own making. Greedy decoding removes that source; the
+# simulated user, the judge and the live account remain, so it reduces the need for
+# repeats rather than removing it.
 #
 # "base" means no modifiers. "mtp3-nopreserve" against "mtp3" isolates reasoning
 # preserve; plain "nopreserve" against "mtp3" would also drop speculative decoding,
@@ -41,8 +51,8 @@ PORT="${LLAMA_PORT:-8090}"
 MODEL_DEFAULT="$MODELS/Qwen3.8-27B-UD-Q4_K_M.gguf"
 MTP_DRAFT="$MODELS/mtp-Qwen3.8-27B-Q4_0.gguf"
 
-MODIFIERS="q6 moe mtp2 mtp3 mtp5 ngram nopreserve cachereuse ctx32k ctx64k ub1024 ub2048"
-EXAMPLES="base mtp3 mtp5 mtp3-ngram mtp3-nopreserve mtp3-cachereuse mtp3-ctx32k mtp3-ub2048 q6-mtp3 moe"
+MODIFIERS="q6 moe mtp2 mtp3 mtp5 ngram nopreserve cachereuse ctx32k ctx64k ub1024 ub2048 temp0"
+EXAMPLES="base mtp3 mtp3-temp0 mtp3-ngram mtp3-nopreserve mtp3-cachereuse mtp3-ctx64k mtp3-ub2048 q6-mtp3 moe"
 CACHE_REUSE_CHUNK="${CACHE_REUSE_CHUNK:-256}"
 
 # Flags shared by every profile: all layers on the GPU, one slot (runs are serial),
@@ -56,7 +66,7 @@ common() {
 # Read a profile name into P_MODEL, P_FLAGS, P_ALIAS and the canonical P_NAME.
 # Fails on an unknown modifier, two of a kind, or a pairing we have no files for.
 parse_profile() {
-  local name="$1" part model="" mtp="" ngram="" nopreserve="" cachereuse="" ctx="" ub=""
+  local name="$1" part model="" mtp="" ngram="" nopreserve="" cachereuse="" ctx="" ub="" temp0=""
   for part in ${name//-/ }; do
     case "$part" in
       base) ;;
@@ -73,6 +83,7 @@ parse_profile() {
       ctx64k) ctx=65536 ;;
       ub1024) ub=1024 ;;
       ub2048) ub=2048 ;;
+      temp0) temp0=1 ;;
       *) echo "unknown modifier '$part' in '$name' (have: base $MODIFIERS)" >&2; return 1 ;;
     esac
   done
@@ -103,6 +114,8 @@ parse_profile() {
   [ -n "$nopreserve" ] && flags+=(--no-reasoning-preserve)
   [ -n "$cachereuse" ] && flags+=(--cache-reuse "$CACHE_REUSE_CHUNK")
   [ -n "$ub" ] && flags+=(-ub "$ub")
+  # Greedy: top-p and top-k in the shared flags stop mattering once this is set.
+  [ -n "$temp0" ] && flags+=(--temp 0)
   P_FLAGS="${flags[*]:-}"
   P_CTX="$ctx"
 
@@ -115,6 +128,7 @@ parse_profile() {
   [ "$ctx" = 32768 ] && parts+=(ctx32k)
   [ "$ctx" = 65536 ] && parts+=(ctx64k)
   [ -n "$ub" ] && parts+=("ub$ub")
+  [ -n "$temp0" ] && parts+=(temp0)
   if [ ${#parts[@]} -eq 0 ]; then
     P_NAME=base
   else
