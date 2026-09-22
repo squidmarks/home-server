@@ -19,12 +19,21 @@
 #   prefill     cachereuse   --cache-reuse 256: reuse a common prefix by KV shifting
 #               ctx32k|64k   a smaller KV allocation than the 128K default
 #               ub1024|2048  a larger physical batch for prompt processing
+#               cram16|cram0 prompt-cache size: 16 GiB, or 0 to turn it off
 #   sampling    temp0        --temp 0: greedy, so the same input takes the same path
 #
 # The prefill modifiers exist because prompt processing is where the time actually
 # goes: 45% and then 63% of the time inside the model on two measured benchmark
 # cases, producing no tokens at all. Every earlier experiment here tuned decode,
 # which is the smaller half.
+#
+# cram exists because the prompt cache is not big enough to hold a case. It
+# defaults to 8 GiB and the server log shows it evicting ~1.1 GiB entries mid-run,
+# so roughly seven fit while a case makes eleven or more calls with a growing
+# prefix -- which is the likeliest reason four calls in one case re-processed
+# 7k-23k tokens and accounted for 108 s of its 133 s of prefill. cram0 turns the
+# cache off as a control: if that is much worse, the cache is load-bearing and more
+# of it should help. The host has 30 GiB of RAM, so 16 GiB is the sensible ceiling.
 #
 # temp0 exists because nothing was ever setting a temperature: the router sends
 # none and llama.cpp's own default is 0.80, so every run sampled creatively and
@@ -51,7 +60,7 @@ PORT="${LLAMA_PORT:-8090}"
 MODEL_DEFAULT="$MODELS/Qwen3.8-27B-UD-Q4_K_M.gguf"
 MTP_DRAFT="$MODELS/mtp-Qwen3.8-27B-Q4_0.gguf"
 
-MODIFIERS="q6 moe mtp2 mtp3 mtp5 ngram nopreserve cachereuse ctx32k ctx64k ub1024 ub2048 temp0"
+MODIFIERS="q6 moe mtp2 mtp3 mtp5 ngram nopreserve cachereuse ctx32k ctx64k ub1024 ub2048 cram16 cram0 temp0"
 EXAMPLES="base mtp3 mtp3-temp0 mtp3-ngram mtp3-nopreserve mtp3-cachereuse mtp3-ctx64k mtp3-ub2048 q6-mtp3 moe"
 CACHE_REUSE_CHUNK="${CACHE_REUSE_CHUNK:-256}"
 
@@ -66,7 +75,7 @@ common() {
 # Read a profile name into P_MODEL, P_FLAGS, P_ALIAS and the canonical P_NAME.
 # Fails on an unknown modifier, two of a kind, or a pairing we have no files for.
 parse_profile() {
-  local name="$1" part model="" mtp="" ngram="" nopreserve="" cachereuse="" ctx="" ub="" temp0=""
+  local name="$1" part model="" mtp="" ngram="" nopreserve="" cachereuse="" ctx="" ub="" cram="" temp0=""
   for part in ${name//-/ }; do
     case "$part" in
       base) ;;
@@ -83,6 +92,8 @@ parse_profile() {
       ctx64k) ctx=65536 ;;
       ub1024) ub=1024 ;;
       ub2048) ub=2048 ;;
+      cram16) cram=16384 ;;
+      cram0) cram=0 ;;
       temp0) temp0=1 ;;
       *) echo "unknown modifier '$part' in '$name' (have: base $MODIFIERS)" >&2; return 1 ;;
     esac
@@ -114,6 +125,8 @@ parse_profile() {
   [ -n "$nopreserve" ] && flags+=(--no-reasoning-preserve)
   [ -n "$cachereuse" ] && flags+=(--cache-reuse "$CACHE_REUSE_CHUNK")
   [ -n "$ub" ] && flags+=(-ub "$ub")
+  # An empty string means "leave the default"; 0 is a real value, so test for set.
+  [ -n "${cram+set}" ] && [ -n "$cram" ] && flags+=(--cache-ram "$cram")
   # Greedy: top-p and top-k in the shared flags stop mattering once this is set.
   [ -n "$temp0" ] && flags+=(--temp 0)
   P_FLAGS="${flags[*]:-}"
@@ -128,6 +141,8 @@ parse_profile() {
   [ "$ctx" = 32768 ] && parts+=(ctx32k)
   [ "$ctx" = 65536 ] && parts+=(ctx64k)
   [ -n "$ub" ] && parts+=("ub$ub")
+  [ "$cram" = 16384 ] && parts+=(cram16)
+  [ "$cram" = 0 ] && parts+=(cram0)
   [ -n "$temp0" ] && parts+=(temp0)
   if [ ${#parts[@]} -eq 0 ]; then
     P_NAME=base

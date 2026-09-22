@@ -69,7 +69,7 @@ PY
       BENCH_RUN_ID=$(field "$f" run) BENCH_CASES=$(field "$f" cases) \
       BENCH_SIM_MODEL=$(field "$f" simulator) BENCH_JUDGE_MODEL=$(field "$f" judge) \
       BENCH_LABEL_SUFFIX="$suffix" BENCH_KWARGS="$kwargs" BENCH_INFERENCE_JSON="$info" \
-      BENCH_EXPECT_PROFILE="$profile" \
+      BENCH_EXPECT_PROFILE="$profile" BENCH_REPLAY_FROM="$(field "$f" replayFrom)" \
         $runner $(field "$f" models) >>"$log" 2>&1 || rc=$?
     done <<< "$conds"
   fi
