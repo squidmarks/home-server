@@ -16,6 +16,14 @@
 #   speculate   mtp2|3|5     the MTP draft head, --spec-draft-n-max 2/3/5
 #               ngram        ngram-mod
 #   thinking    nopreserve   --no-reasoning-preserve (don't resend earlier thinking)
+#   prefill     cachereuse   --cache-reuse 256: reuse a common prefix by KV shifting
+#               ctx32k|64k   a smaller KV allocation than the 128K default
+#               ub1024|2048  a larger physical batch for prompt processing
+#
+# The prefill modifiers exist because prompt processing is where the time actually
+# goes: 45% and then 63% of the time inside the model on two measured benchmark
+# cases, producing no tokens at all. Every earlier experiment here tuned decode,
+# which is the smaller half.
 #
 # "base" means no modifiers. "mtp3-nopreserve" against "mtp3" isolates reasoning
 # preserve; plain "nopreserve" against "mtp3" would also drop speculative decoding,
@@ -33,19 +41,22 @@ PORT="${LLAMA_PORT:-8090}"
 MODEL_DEFAULT="$MODELS/Qwen3.8-27B-UD-Q4_K_M.gguf"
 MTP_DRAFT="$MODELS/mtp-Qwen3.8-27B-Q4_0.gguf"
 
-MODIFIERS="q6 moe mtp2 mtp3 mtp5 ngram nopreserve"
-EXAMPLES="base mtp2 mtp3 mtp5 mtp3-ngram ngram nopreserve mtp3-nopreserve q6 mtp3-q6 moe"
+MODIFIERS="q6 moe mtp2 mtp3 mtp5 ngram nopreserve cachereuse ctx32k ctx64k ub1024 ub2048"
+EXAMPLES="base mtp3 mtp5 mtp3-ngram mtp3-nopreserve mtp3-cachereuse mtp3-ctx32k mtp3-ub2048 q6-mtp3 moe"
+CACHE_REUSE_CHUNK="${CACHE_REUSE_CHUNK:-256}"
 
 # Flags shared by every profile: all layers on the GPU, one slot (runs are serial),
-# 128K context with an 8-bit KV cache, and Qwen's own sampling defaults.
+# an 8-bit KV cache, and Qwen's own sampling defaults. The context size is passed in
+# because a modifier can change it, and it keeps its place in the line so a profile
+# that does not touch it renders exactly as before.
 common() {
-  echo "-ngl 99 -c 131072 -np 1 --cache-type-k q8_0 --cache-type-v q8_0 --top-p 0.95 --top-k 20 --jinja --metrics"
+  echo "-ngl 99 -c ${1:-131072} -np 1 --cache-type-k q8_0 --cache-type-v q8_0 --top-p 0.95 --top-k 20 --jinja --metrics"
 }
 
 # Read a profile name into P_MODEL, P_FLAGS, P_ALIAS and the canonical P_NAME.
 # Fails on an unknown modifier, two of a kind, or a pairing we have no files for.
 parse_profile() {
-  local name="$1" part model="" mtp="" ngram="" nopreserve=""
+  local name="$1" part model="" mtp="" ngram="" nopreserve="" cachereuse="" ctx="" ub=""
   for part in ${name//-/ }; do
     case "$part" in
       base) ;;
@@ -57,6 +68,11 @@ parse_profile() {
         mtp="${part#mtp}" ;;
       ngram) ngram=1 ;;
       nopreserve) nopreserve=1 ;;
+      cachereuse) cachereuse=1 ;;
+      ctx32k) ctx=32768 ;;
+      ctx64k) ctx=65536 ;;
+      ub1024) ub=1024 ;;
+      ub2048) ub=2048 ;;
       *) echo "unknown modifier '$part' in '$name' (have: base $MODIFIERS)" >&2; return 1 ;;
     esac
   done
@@ -85,13 +101,20 @@ parse_profile() {
   fi
   [ -n "$mtp" ] && flags+=(--spec-draft-n-max "$mtp")
   [ -n "$nopreserve" ] && flags+=(--no-reasoning-preserve)
+  [ -n "$cachereuse" ] && flags+=(--cache-reuse "$CACHE_REUSE_CHUNK")
+  [ -n "$ub" ] && flags+=(-ub "$ub")
   P_FLAGS="${flags[*]:-}"
+  P_CTX="$ctx"
 
   local parts=()
   [ -n "$model" ] && parts+=("$model")
   [ -n "$mtp" ] && parts+=("mtp$mtp")
   [ -n "$ngram" ] && parts+=(ngram)
   [ -n "$nopreserve" ] && parts+=(nopreserve)
+  [ -n "$cachereuse" ] && parts+=(cachereuse)
+  [ "$ctx" = 32768 ] && parts+=(ctx32k)
+  [ "$ctx" = 65536 ] && parts+=(ctx64k)
+  [ -n "$ub" ] && parts+=("ub$ub")
   if [ ${#parts[@]} -eq 0 ]; then
     P_NAME=base
   else
@@ -111,7 +134,7 @@ Wants=network-online.target
 User=$USER
 Group=$USER
 SupplementaryGroups=render video
-ExecStart=$HOME/llama.cpp/build/bin/llama-server -m $P_MODEL $(common) $P_FLAGS --host $HOST --port $PORT -a $P_ALIAS
+ExecStart=$HOME/llama.cpp/build/bin/llama-server -m $P_MODEL $(common "$P_CTX") $P_FLAGS --host $HOST --port $PORT -a $P_ALIAS
 Restart=on-failure
 RestartSec=5
 
@@ -163,7 +186,7 @@ print(json.dumps({"profile":e["PROFILE"],"execStart":e["EXEC"],"active":e["ACTIV
     ;;
   flags)
     parse_profile "${2:?which profile}"
-    echo "$P_NAME: -m $P_MODEL $P_FLAGS -a $P_ALIAS"
+    echo "$P_NAME: -m $P_MODEL $(common "$P_CTX") $P_FLAGS -a $P_ALIAS"
     ;;
   set)
     parse_profile "${2:?which profile}"
