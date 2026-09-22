@@ -13,4 +13,9 @@ export LLAMA_METRICS_URL="${LLAMA_METRICS_URL:-http://172.18.0.1:8090/metrics}"
 export RUN_STATE_DIR="${RUN_STATE_DIR:-$ENV_DIR/benchmark-run-state}"
 export BENCHMARK_STATE_DIR="${BENCHMARK_STATE_DIR:-$ENV_DIR/benchmark-state}"
 export BENCH_USER_EMAIL="${BENCH_USER_EMAIL:-geoff.gerhardt@gmail.com}"                # studio user that owns the Witness agents
-export BENCH_CODE_VERSION="${BENCH_CODE_VERSION:-$(cat "$AGENT_STUDIO_DIR/.build-info" 2>/dev/null || echo unknown)}"   # stamped by sync-agent-studio.sh
+# Stamped by sync-agent-studio.sh and read fresh on every job. It must NOT fall back
+# to an inherited BENCH_CODE_VERSION: the worker is a long-lived service that exports
+# its environment to each job it starts, so a sync during its lifetime would keep
+# stamping results with the version the worker booted on. Override with
+# BENCH_CODE_VERSION_OVERRIDE when a result really has to claim something else.
+export BENCH_CODE_VERSION="${BENCH_CODE_VERSION_OVERRIDE:-$(cat "$AGENT_STUDIO_DIR/.build-info" 2>/dev/null || echo unknown)}"
