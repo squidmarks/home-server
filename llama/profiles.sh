@@ -5,7 +5,8 @@
 #   ./profiles.sh list             the modifiers, and what is running now
 #   ./profiles.sh set mtp3         write the unit, restart, wait for the model to load
 #   ./profiles.sh flags mtp3       print the flags a name would produce (changes nothing)
-#   ./profiles.sh label            print the running profile's name (for BENCH server setup)
+#   ./profiles.sh label            print the running profile's name
+#   ./profiles.sh describe         JSON: what is running now, for a result to record
 #
 # A profile name is its modifiers joined by "-", so they compose and an A/B can
 # change one thing at a time:
@@ -127,6 +128,39 @@ case "${1:-list}" in
     grep -o 'llama-server .*' "$UNIT" 2>/dev/null | cut -c1-200 || true
     ;;
   label) cat "$STATE" 2>/dev/null || echo unknown ;;
+  describe)
+    # What the server is ACTUALLY running, as JSON, for a benchmark result to record.
+    # Read from the unit and the state file - never from a name passed in - so the
+    # recorded value is an observation rather than a claim. A result that carries the
+    # whole ExecStart line still means something after a profile is redefined.
+    name=$(cat "$STATE" 2>/dev/null || echo unknown)
+    exec_line=$(grep -m1 '^ExecStart=' "$UNIT" 2>/dev/null | sed 's/^ExecStart=//')
+    active=$(systemctl is-active llama-server 2>/dev/null || true)
+    # WHICH llama.cpp built the running server, not just how it was invoked. The
+    # kernels that decide performance - the RDNA patches, the speculative-decoding
+    # paths - live in the shared libraries, not in the small launcher, so a hash of
+    # the binary would say nothing. The source is a git checkout, so identify it by
+    # commit, branch and whether the tree was dirty: a patched build (git am onto a
+    # branch) is then visibly a different thing from stock. Nothing is executed here,
+    # so this is safe to call while a case is running.
+    bin=${exec_line%% *}
+    src=$(cd "$(dirname "$bin")/../.." 2>/dev/null && pwd || echo "")
+    commit=$(git -C "$src" rev-parse --short HEAD 2>/dev/null || echo unknown)
+    branch=$(git -C "$src" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
+    dirty=false
+    [ -n "$(git -C "$src" status --porcelain --untracked-files=no 2>/dev/null)" ] && dirty=true
+    # The newest artifact in the build directory. A source tree that moved on without
+    # being rebuilt cannot then pass as the build that actually ran.
+    newest=$(find "$(dirname "$bin")" -maxdepth 1 -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1)
+    built=""
+    [ -n "$newest" ] && built=$(date -u -d "@${newest%.*}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "")
+    PROFILE="$name" EXEC="$exec_line" ACTIVE="$active" SRC="$src" COMMIT="$commit" \
+    BRANCH="$branch" DIRTY="$dirty" BUILT="$built" python3 -c 'import json,os
+e=os.environ
+print(json.dumps({"profile":e["PROFILE"],"execStart":e["EXEC"],"active":e["ACTIVE"],
+  "build":{"source":e["SRC"],"commit":e["COMMIT"],"branch":e["BRANCH"],
+           "dirty":e["DIRTY"]=="true","builtAt":e["BUILT"] or None}}))'
+    ;;
   flags)
     parse_profile "${2:?which profile}"
     echo "$P_NAME: -m $P_MODEL $P_FLAGS -a $P_ALIAS"

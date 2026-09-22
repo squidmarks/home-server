@@ -65,6 +65,24 @@ record_failure() {
 run_one() {
   local model="$1" id="$2" run_id="$3"
   local label="$model${BENCH_LABEL_SUFFIX:+--$BENCH_LABEL_SUFFIX}"
+
+  # What the model server is actually running, recorded with the result. Only for a
+  # local model: a hosted one is not served from this box, and stamping the local
+  # server's flags on it would be a lie. If the job asked for a profile and the
+  # server is on another (someone switched it by hand mid-job), stop rather than
+  # mislabel every case after it.
+  local server_json="" observed=""
+  case "$model" in local-*)
+    server_json=$("$HERE/../llama/profiles.sh" describe 2>/dev/null || echo "")
+    observed=$(printf '%s' "$server_json" | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("profile",""))
+except Exception: print("")' 2>/dev/null || echo "")
+    if [ -n "${BENCH_EXPECT_PROFILE:-}" ] && [ "$observed" != "$BENCH_EXPECT_PROFILE" ]; then
+      record_failure "$run_id" "$label" "$id" "the model server is on profile ${observed:-unknown}, but this condition asked for $BENCH_EXPECT_PROFILE"
+      return 0
+    fi
+  ;; esac
+
   if ! reset_db; then record_failure "$run_id" "$label" "$id" "could not reset the benchmark database"; return 0; fi
   if ! (up "$model"); then record_failure "$run_id" "$label" "$id" "studio failed to start"; down; return 0; fi
   set +e
@@ -75,6 +93,7 @@ run_one() {
     -e BENCH_MONGO_URI="mongodb://benchmark_run:$(grep '^BENCHMARK_RUN_DB_PASSWORD=' "$ENV_FILE" | cut -d= -f2)@${MONGO_HOST}:27017/benchmark_run?authSource=admin" \
     -e BENCH_RUN_ID="$run_id" -e GUIDANCE_DIR=/guidance -e BENCH_CODE_VERSION="$BENCH_CODE_VERSION" \
     -e BENCH_MODEL_LABEL="$label" -e BENCH_INFERENCE_JSON="${BENCH_INFERENCE_JSON:-}" \
+    -e BENCH_SERVER_JSON="$server_json" \
     -e BENCH_SIM_MODEL="${BENCH_SIM_MODEL:-}" -e BENCH_JUDGE_MODEL="${BENCH_JUDGE_MODEL:-}" \
     node:22-slim sh -c "npm i --silent --no-audit --no-fund >/dev/null 2>&1 && node run-dev.mjs '$model' '$id'"
   set -e
