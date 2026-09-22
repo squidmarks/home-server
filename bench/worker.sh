@@ -31,7 +31,16 @@ run_job() {
   f="$claim"
   setstate "$id" running "{\"startedAt\":\"$(now)\"}"
   local rc=0
-  if [ "$type" = "rejudge" ]; then
+  if [ "$type" = "probe" ]; then
+    # A measurement. The worker runs it for the same reason it runs everything
+    # else: it holds the job, so nothing else can be touching the model server.
+    # That exclusivity is the whole point -- a nine-profile sweep run by hand on
+    # 2026-09-22 switched llama-server eight times beside a live worker and only
+    # got away with it because the queue happened to be empty.
+    local tool profile args
+    tool=$(field "$f" tool); profile=$(field "$f" profile); args=$(field "$f" args)
+    "$HERE/probe-run.sh" "$(field "$f" run)" "$tool" "$profile" $args >"$log" 2>&1 || rc=$?
+  elif [ "$type" = "rejudge" ]; then
     local run judge targets; run=$(field "$f" run); judge=$(field "$f" judge); targets=$(field "$f" targets)
     docker run --rm -v "$BENCH_DIR":/bench -w /bench --user "$(id -u):$(id -g)" -e HOME=/tmp \
       --env-file "$ENV_DIR/bench.env" node:22-slim node rejudge.mjs "$judge" "$run" $targets >"$log" 2>&1 || rc=$?
