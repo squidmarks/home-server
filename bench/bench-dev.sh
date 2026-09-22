@@ -25,7 +25,8 @@ reset_db() {
 }
 
 up() {
-  BENCH_MODEL="$1" LOCAL_LLM_CHAT_TEMPLATE_KWARGS="${BENCH_KWARGS:-}" "${COMPOSE[@]}" up -d --force-recreate >/dev/null 2>&1
+  BENCH_MODEL="$1" LOCAL_LLM_CHAT_TEMPLATE_KWARGS="${BENCH_KWARGS:-}" \
+  RUNTIME_CLOCK_ISO="${RUNTIME_CLOCK_ISO:-}" "${COMPOSE[@]}" up -d --force-recreate >/dev/null 2>&1
   for _ in $(seq 1 60); do
     curl -fs http://127.0.0.1:3511/health >/dev/null 2>&1 && { echo "studio up (router model $1)"; return; }
     sleep 2

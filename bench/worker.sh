@@ -45,6 +45,13 @@ run_job() {
     docker run --rm -v "$BENCH_DIR":/bench -w /bench --user "$(id -u):$(id -g)" -e HOME=/tmp \
       --env-file "$ENV_DIR/bench.env" node:22-slim node rejudge.mjs "$judge" "$run" $targets >"$log" 2>&1 || rc=$?
   else
+    # One clock for the whole job. The studio stamps the current time into every
+    # turn, so without this two cells minutes apart send different input and a
+    # deterministic model answers differently -- which is what made repeats
+    # incomparable. Fixed per job, so every condition in a comparison sees the
+    # same "now" and the only thing that differs is what the job is varying.
+    export RUNTIME_CLOCK_ISO="${RUNTIME_CLOCK_ISO:-$(now)}"
+    echo ">>> runtime clock pinned to $RUNTIME_CLOCK_ISO" >>"$log"
     local runner=./run_all.sh
     [ "$(field "$f" suite)" = "investment" ] && runner=./run_dev_all.sh
     # One pass of the cases per inference condition (a job without any is one default pass).

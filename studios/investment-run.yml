@@ -27,6 +27,11 @@ services:
       LOCAL_LLM_BASE_URL: http://172.18.0.1:8090/v1
       # Per-request thinking settings for the local model (JSON), set per run by bench-dev.sh.
       LOCAL_LLM_CHAT_TEMPLATE_KWARGS: ${LOCAL_LLM_CHAT_TEMPLATE_KWARGS:-}
+      # Pins the clock the studio stamps into every turn. Empty in production,
+      # where the model should know the real time; set for a benchmark so two
+      # runs of the same case send the same request instead of differing by a
+      # minute and diverging from there.
+      RUNTIME_CLOCK_ISO: ${RUNTIME_CLOCK_ISO:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       # Needed only for keys that are not scoped to a workspace; leave blank otherwise.
       ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
