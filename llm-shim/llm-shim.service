@@ -1,0 +1,29 @@
+# The shim in front of the local inference engines. Unprivileged on purpose: it
+# proxies request bodies from the studio, so it holds no root. Switching engines
+# needs systemd and docker, and that lives in switch-engine.sh, which this calls
+# with one argument from a fixed set.
+[Unit]
+Description=Local inference shim (one endpoint, one metrics shape, energy)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=geoff
+WorkingDirectory=/home/geoff/infra/llm-shim
+Environment=PORT=8091
+# Both the docker bridge (the studio container reaches 172.18.0.1) and
+# localhost (nginx proxies from there) must be able to see it. The box takes no
+# traffic that did not come through tailscale, and nginx is the front door.
+Environment=HOST=0.0.0.0
+Environment=LLAMA_BASE_URL=http://172.18.0.1:8090
+Environment=VLLM_BASE_URL=http://172.18.0.1:8080
+Environment=SHELLY_URL=http://192.168.68.112
+Environment=POWER_IDLE_WATTS=50
+Environment=SWITCH_CMD=/home/geoff/infra/llama/switch-engine.sh
+ExecStart=/usr/bin/node server.mjs
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

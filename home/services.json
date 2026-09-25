@@ -4,30 +4,73 @@
     {
       "name": "Witness",
       "services": [
-        { "name": "Witness Studio", "description": "Household agents, missions and transactions", "port": 3443, "check": "http://127.0.0.1:4180/ping" }
+        {
+          "name": "Witness Studio",
+          "description": "Household agents, missions and transactions",
+          "port": 3443,
+          "check": "http://127.0.0.1:4180/ping"
+        }
       ]
     },
     {
       "name": "Investment",
       "services": [
-        { "name": "Investment Studio", "description": "Build and run investment agents on a paper account", "port": 3543, "check": "http://127.0.0.1:3502/" },
-        { "name": "Model Bench", "description": "Cases, runs, judging and results for model comparison", "port": 3400, "check": "http://127.0.0.1:3400/api/models" }
+        {
+          "name": "Investment Studio",
+          "description": "Build and run investment agents on a paper account",
+          "port": 3543,
+          "check": "http://127.0.0.1:3502/"
+        },
+        {
+          "name": "Model Bench",
+          "description": "Cases, runs, judging and results for model comparison",
+          "port": 3400,
+          "check": "http://127.0.0.1:3400/api/models"
+        }
       ]
     },
     {
       "name": "Monitoring",
       "services": [
-        { "name": "Grafana", "description": "Server, inference, MongoDB and studio dashboards", "port": 3300, "check": "http://127.0.0.1:3000/api/health" },
-        { "name": "Local model server", "description": "llama.cpp on the GPU (not published; status only)", "check": "http://172.18.0.1:8090/health" }
+        {
+          "name": "Grafana",
+          "description": "Server, inference, MongoDB and studio dashboards",
+          "port": 3300,
+          "check": "http://127.0.0.1:3000/api/health"
+        },
+        {
+          "name": "Local inference",
+          "description": "llama.cpp or vLLM on the GPU \u2014 status, metrics and which engine is in use",
+          "check": "http://127.0.0.1:8091/health",
+          "port": 443,
+          "path": "/llm/admin/"
+        }
       ]
     },
     {
       "name": "Developer",
       "collapsed": true,
       "services": [
-        { "name": "Witness agent-service", "description": "Backend API and metrics for the Witness studio", "port": 3001, "path": "/health", "check": "http://127.0.0.1:3001/health" },
-        { "name": "Investment agent-service", "description": "Backend API for the Investment Studio", "port": 3501, "path": "/health", "check": "http://127.0.0.1:3501/health" },
-        { "name": "OAuth callback", "description": "Google connection callback for Witness", "port": 8443, "check": "http://127.0.0.1:8080/" }
+        {
+          "name": "Witness agent-service",
+          "description": "Backend API and metrics for the Witness studio",
+          "port": 3001,
+          "path": "/health",
+          "check": "http://127.0.0.1:3001/health"
+        },
+        {
+          "name": "Investment agent-service",
+          "description": "Backend API for the Investment Studio",
+          "port": 3501,
+          "path": "/health",
+          "check": "http://127.0.0.1:3501/health"
+        },
+        {
+          "name": "OAuth callback",
+          "description": "Google connection callback for Witness",
+          "port": 8443,
+          "check": "http://127.0.0.1:8080/"
+        }
       ]
     }
   ]

@@ -19,3 +19,12 @@ export BENCH_USER_EMAIL="${BENCH_USER_EMAIL:-geoff.gerhardt@gmail.com}"         
 # stamping results with the version the worker booted on. Override with
 # BENCH_CODE_VERSION_OVERRIDE when a result really has to claim something else.
 export BENCH_CODE_VERSION="${BENCH_CODE_VERSION_OVERRIDE:-$(cat "$AGENT_STUDIO_DIR/.build-info" 2>/dev/null || echo unknown)}"
+
+# The smart plug the box is on, so a case can say what it cost at the wall.
+# Unset means no measurement (which is different from zero). The rate is stored
+# with each result, so a tariff change does not silently rewrite old costs.
+export SHELLY_URL="${SHELLY_URL:-http://192.168.68.112}"
+export POWER_RATE_PER_KWH="${POWER_RATE_PER_KWH:-}"
+# What the box draws doing nothing. Re-measure it when the resident model
+# changes: a loaded 27B idles differently from an empty card.
+export POWER_IDLE_WATTS="${POWER_IDLE_WATTS:-50}"

@@ -14,3 +14,10 @@ serve 3501 3501 "Investment Studio agent-service (also the panels origin)"
 serve 3543 3502 "Investment Studio"
 serve 3600 3110 "Mongoku (read-only MongoDB browser)"
 serve 8443 8080 "Witness Google OAuth callback"
+
+# Path-based, on the tailnet name itself: https://server/llm/ reaches the local
+# inference shim without anyone remembering a port. tailscale strips the prefix
+# before forwarding, so the page it serves asks for its API relative to where it
+# was loaded.
+path() { sudo tailscale serve --bg --set-path="$1" "http://127.0.0.1:$2" >/dev/null; printf '%-6s -> 127.0.0.1:%s  %s\n' "$1" "$2" "$3"; }
+path /llm 8091 "local inference shim (admin page at /llm/admin/)"

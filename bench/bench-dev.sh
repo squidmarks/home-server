@@ -72,8 +72,29 @@ run_one() {
   # server's flags on it would be a lie. If the job asked for a profile and the
   # server is on another (someone switched it by hand mid-job), stop rather than
   # mislabel every case after it.
+  # One URL for either engine. The shim proxies to whichever is holding the card
+  # and, more to the point, returns the same metrics shape for both -- llama.cpp
+  # reports its own timings in the body, vLLM reports only engine-wide counters,
+  # and the studio should not have to know the difference. It also measures what
+  # the call drew at the wall, which no engine can.
+  export LOCAL_LLM_BASE_URL="${SHIM_BASE_URL:-http://172.18.0.1:8091/v1}"
+
   local server_json="" observed=""
-  case "$model" in local-*)
+  case "$model" in
+    # vLLM serves this one, not llama.cpp, so llama-server's profile says nothing
+    # about it. Stamping it anyway would have the result claim a configuration
+    # that had no part in producing it -- a label, not an identity. Record what
+    # actually served it instead.
+    *mxfp4*)
+      server_json=$(curl -s -m 5 "${VLLM_BASE_URL:-http://172.18.0.1:8080/v1}/models" 2>/dev/null | python3 -c '
+import json,sys
+try:
+    ids=[m["id"] for m in json.load(sys.stdin).get("data",[])]
+    print(json.dumps({"engine":"vllm","served":ids}))
+except Exception: print("")' 2>/dev/null || echo "")
+    ;;
+  esac
+  case "$model" in local-qwen3-32b|local-qwen3.8-27b)
     server_json=$("$HERE/../llama/profiles.sh" describe 2>/dev/null || echo "")
     observed=$(printf '%s' "$server_json" | python3 -c 'import json,sys
 try: print(json.load(sys.stdin).get("profile",""))
@@ -97,6 +118,8 @@ except Exception: print("")' 2>/dev/null || echo "")
     -e BENCH_SERVER_JSON="$server_json" \
     -e BENCH_REPLAY_FROM="${BENCH_REPLAY_FROM:-}" \
     -e BENCH_SIM_MODEL="${BENCH_SIM_MODEL:-}" -e BENCH_JUDGE_MODEL="${BENCH_JUDGE_MODEL:-}" \
+    -e SHELLY_URL="${SHELLY_URL:-}" -e POWER_RATE_PER_KWH="${POWER_RATE_PER_KWH:-}" \
+    -e POWER_IDLE_WATTS="${POWER_IDLE_WATTS:-}" \
     node:22-slim sh -c "npm i --silent --no-audit --no-fund >/dev/null 2>&1 && node run-dev.mjs '$model' '$id'"
   set -e
   mkdir -p "results/$run_id/$label"
