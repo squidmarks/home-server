@@ -1,4 +1,5 @@
 {
+  "fqdn": "server.example.ts.net",
   "title": "server",
   "groups": [
     {

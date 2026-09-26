@@ -1,6 +1,8 @@
-// Renders services from /api/services. Links use the address you opened this page
+// Renders services from /api/services. Port links use the tailnet FQDN the API
 // on, so they keep working if the machine's name changes. Text is inserted as text.
 const root = document.getElementById("groups");
+// The tailnet FQDN the API reports; port links need it (see card()).
+const config = { fqdn: "" };
 const el = (tag, cls, ...kids) => {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -16,7 +18,15 @@ function card(s) {
   ];
   if (!linked) return el("div", "card", ...inner);
   const a = el("a", "card", ...inner);
-  a.href = `https://${location.hostname}${s.port === 443 ? "" : `:${s.port}`}${s.path || "/"}`;
+  // tailscale serve answers on the tailnet FQDN only, so a port link built from
+  // a short hostname does not connect. That did not matter while this page was
+  // always opened at the FQDN; it broke every link the moment nginx made
+  // http://server/ a second way in. A port link therefore always uses the FQDN
+  // the API reports, and a path link stays relative so it works from either.
+  const host = s.port === 443 ? "" : (config.fqdn || location.hostname);
+  a.href = s.port === 443
+    ? `${s.path || "/"}`
+    : `https://${host}:${s.port}${s.path || "/"}`;
   return a;
 }
 
@@ -31,6 +41,7 @@ function section(g) {
 async function load() {
   try {
     const data = await (await fetch("/api/services")).json();
+    config.fqdn = data.fqdn || "";
     document.title = data.title;
     document.getElementById("title").textContent = data.title;
     document.getElementById("checked").textContent = `checked ${new Date(data.checkedAt).toLocaleTimeString()}`;

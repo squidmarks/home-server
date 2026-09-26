@@ -41,7 +41,14 @@ export async function buildStatus(config, fetchImpl = fetch) {
       ),
     })),
   );
-  return { title: config.title ?? "server", groups, checkedAt: new Date().toISOString() };
+  return {
+    title: config.title ?? "server",
+    // Port links only resolve on the tailnet FQDN, so the page is told what it
+    // is rather than guessing from the address it happened to be opened at.
+    fqdn: config.fqdn ?? process.env.TAILNET_FQDN ?? "",
+    groups,
+    checkedAt: new Date().toISOString(),
+  };
 }
 
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8" };
