@@ -86,3 +86,41 @@ not a metric line
 `);
   assert.equal(p["vllm:generation_tokens_total"], 12);
 });
+
+test("vLLM prefix-cache hits are reported as cached prompt tokens and a rate", () => {
+  // The same field llama.cpp fills per request, so the studio sees one number
+  // whichever engine served the call.
+  const before = {
+    "vllm:prefix_cache_queries_total": 1000,
+    "vllm:prefix_cache_hits_total": 400,
+  };
+  const after = {
+    "vllm:prefix_cache_queries_total": 1500,
+    "vllm:prefix_cache_hits_total": 850,
+  };
+  const m = fromVllmCounters(before, after, { exclusive: true });
+  assert.equal(m.cachedTokens, 450);
+  assert.equal(m.cacheHitRate, 0.9); // 450 of the 500 queried in this request
+});
+
+test("a request that queried no cache reports neither a count nor a rate", () => {
+  // Real generation, so the result is an object at all -- fromVllmCounters
+  // returns nothing for a delta that shows no activity whatsoever.
+  const before = {
+    "vllm:generation_tokens_total": 100,
+    "vllm:inter_token_latency_seconds_sum": 1,
+    "vllm:inter_token_latency_seconds_count": 100,
+    "vllm:prefix_cache_queries_total": 7,
+    "vllm:prefix_cache_hits_total": 7,
+  };
+  const after = {
+    ...before,
+    "vllm:generation_tokens_total": 150,
+    "vllm:inter_token_latency_seconds_sum": 2,
+    "vllm:inter_token_latency_seconds_count": 150,
+  };
+  const m = fromVllmCounters(before, after, { exclusive: true });
+  assert.equal(m.predictedTokens, 50);
+  assert.equal(m.cachedTokens, undefined);
+  assert.equal(m.cacheHitRate, undefined);
+});

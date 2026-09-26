@@ -87,6 +87,14 @@ export function fromVllmCounters(before, after, { exclusive = true } = {}) {
   const ttftSum = d("vllm:time_to_first_token_seconds_sum");
   const draftTokens = d("vllm:spec_decode_num_draft_tokens_total");
   const draftAccepted = d("vllm:spec_decode_num_accepted_tokens_total");
+  // Prompt tokens the engine answered from its own prefix cache instead of
+  // evaluating. In a multi-turn agent conversation most of each turn's prompt is
+  // the previous turn, so this is usually the large majority of the prompt --
+  // and it is the difference between a prefill that costs something and one that
+  // is nearly free. llama.cpp reports the same thing per request; this is the
+  // vLLM side of the field, so the studio sees one number for either engine.
+  const cacheQueries = d("vllm:prefix_cache_queries_total");
+  const cacheHits = d("vllm:prefix_cache_hits_total");
   const out = {
     engine: "vllm",
     source: "prometheus",
@@ -107,6 +115,13 @@ export function fromVllmCounters(before, after, { exclusive = true } = {}) {
     // and tokens-per-step for the request is total tokens over total steps --
     // which cannot be recovered from per-call averages.
     steps: itlCount || undefined,
+    cachedTokens: cacheHits || undefined,
+    // Reported alongside the count, because the rate is what is comparable
+    // across requests of different sizes.
+    cacheHitRate:
+      cacheQueries > 0 && cacheHits !== undefined
+        ? Math.round((cacheHits / cacheQueries) * 1000) / 1000
+        : undefined,
     tokensPerStep:
       itlCount > 0 && predictedTokens > 0
         ? Math.round((predictedTokens / itlCount) * 100) / 100
