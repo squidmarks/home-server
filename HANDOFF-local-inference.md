@@ -5,7 +5,7 @@ repos are the source of truth, this is the map.
 
 ## Goal
 
-Make the GPU box a NUC replacement and find out which local and hosted models can
+Make the GPU box the local server and find out which local and hosted models can
 **develop** agents (build them well, following the studio's guidance) and later **execute**
 them. Investment returns are not the point. The Agent Studio exists so Scitara can replace
 deterministic orchestrations with agents, so the bench doubles as the edge-case validation
@@ -13,9 +13,10 @@ tool for that (notes: `agent-studio/docs/agent-validation-with-the-bench.md`).
 
 ## Hardware and layout
 
-- `ssh gpu` (Tailscale, user geoff): Gigabyte B360M DS3H, i5-9400F, 32 GB RAM, **AMD Radeon AI
-  PRO R9700 (gfx1201, 32 GB)**, Ubuntu 26.04, Ubuntu's ROCm 7.1. ReBAR needed a BIOS mod. The
-  NUC (`server`) still hosts Witness, Mongo, monitoring. Details: memory file `project_gpu_box.md`.
+- `ssh server` (Tailscale, user geoff): Gigabyte B360M DS3H, i5-9400F, 32 GB RAM, **AMD Radeon AI
+  PRO R9700 (gfx1201, 32 GB)**, Ubuntu 26.04, Ubuntu's ROCm 7.1. ReBAR needed a BIOS mod. It also
+  hosts Witness, Mongo and monitoring: the hosts were consolidated onto this one box and
+  `server` now resolves to it. Details: memory file `project_gpu_box.md`.
 - Two repos, deliberately separate:
   - `/Users/geoffgerhardt/code/agent-studio` (branch `geoff.gerhardt/agent-benchmark`): product
     code + bench code. Rule from the user: **no homelab/Tailscale/personal code here** (only the
@@ -34,8 +35,8 @@ thinking ON by default. Studios reach it via `LOCAL_LLM_BASE_URL`.
 
 Switch config with named profiles (rewrites the systemd unit, restarts, waits for load):
 
-    ssh gpu '~/infra/llama/profiles.sh list'
-    ssh gpu '~/infra/llama/profiles.sh set mtp3'
+    ssh server '~/infra/llama/profiles.sh list'
+    ssh server '~/infra/llama/profiles.sh set mtp3'
 
 Profiles: `base mtp2 mtp3 mtp5 mtp3-ngram ngram nopreserve q6 moe`. **Currently running: `mtp3`.**
 Files in `~/models`: Qwen3.8-27B Q4_K_M and Q6_K, `mtp-Qwen3.8-27B-Q4_0.gguf` (MTP draft head),
@@ -107,13 +108,13 @@ Hosted models on the OLD guidance (`dev-full1`, news-trader): haiku 0.825, sonne
 trading-assistant x {default thinking, effort high, effort medium} x 3 repeats on the `mtp3` profile,
 18 cells, ~2-3 h. Last known: 6 of 18 finished (default-thinking order-sizer runs scored 94%, 100%,
 100% at 17-24 min; trading-assistant default run 1 100% in 11.6 min); effort-high sizer running.
-I could not check after that: `ssh gpu` stopped resolving (Tailscale/DNS) at the end of the session.
+I could not check after that: `ssh server` stopped resolving (Tailscale/DNS) at the end of the session.
 
 ## Next steps (agreed plan)
 
 1. When `q38-effort` finishes, read the spread per condition (mean and spread are on the run page) and
    pick the thinking setting. Then **rebuild the studio image** so results carry server timing:
-   `ssh gpu 'cd ~/infra/studios && BENCHMARK_STATE_DIR=/tmp/unused docker compose -p benchmark-studio --env-file ~/agent-studio/benchmark.env -f investment.yml build agent-service'`.
+   `ssh server 'cd ~/infra/studios && BENCHMARK_STATE_DIR=/tmp/unused docker compose -p benchmark-studio --env-file ~/agent-studio/benchmark.env -f investment.yml build agent-service'`.
    Do not rebuild mid-experiment (it changes the code version between cells).
 2. Cheap speed probes on the chosen thinking setting: MTP n-max 2/3/5, `mtp3-ngram`, Q6, MoE
    (`probe.sh`). Then a quality run of the MoE (`profiles.sh set moe`, model alias `local-qwen3.6-35b-a3b`;

@@ -1,17 +1,17 @@
-# Production deployment for the Witness profile on the home NUC, replacing
+# Production deployment for the Witness profile on the home server, replacing
 # the Vultr VPS deployment (see DEPLOY_VPS.md for that runbook — this file
 # follows the same trust-boundary pattern: Tailscale, not public TLS/Keycloak,
 # every port bound to 127.0.0.1 only, made reachable via `tailscale serve`).
 #
 # Two differences from docker-compose.vps.yml:
-#   1. Builds images locally (build:, not image:) — the NUC is the same
+#   1. Builds images locally (build:, not image:) — the server is the same
 #      amd64 architecture as production, so no Docker Hub push/pull round
 #      trip and no QEMU cross-compile like the Mac needed.
-#   2. WITNESS_HOST is server.example.ts.net (the NUC's own Tailscale
+#   2. WITNESS_HOST is server.example.ts.net (the box's own Tailscale
 #      hostname), not a dedicated witness-studio hostname — this box is also
 #      the local LLM inference server and will run other services later.
 #
-# Mongo lives in its own standalone stack (~/infra/mongo on the NUC), not
+# Mongo lives in its own standalone stack (~/infra/mongo on the server), not
 # here — so redeploying Witness never takes Mongo down for other apps. This
 # joins the `platform` network it publishes itself on to reach it as
 # `mongo:27017`; must already exist (`docker network create platform`,
@@ -23,8 +23,8 @@
 # updating the Google OAuth client's login redirect URI too (Console, not
 # here) — see the .env file's comment.
 #
-# Run from ~/agent-studio on the NUC:
-#   docker compose -f docker-compose.nuc.yml --env-file docker-compose.nuc.env up -d --build
+# Run from ~/agent-studio on the server:
+#   docker compose -f docker-compose.server.yml --env-file docker-compose.server.env up -d --build
 
 name: agent-studio
 
@@ -47,7 +47,7 @@ services:
       # own gateway IP rather than loopback, specifically so containers on
       # that network — this one included — can reach it directly; a
       # loopback bind is invisible to every Docker bridge, gateway trick or
-      # not. On the gpu box the platform gateway is 172.18.0.1 and the
+      # not. On this box the platform gateway is 172.18.0.1 and the
       # "local" provider (LocalProvider, model ids "local-*") uses it below.
       NODE_ENV: production
       LOCAL_LLM_BASE_URL: http://172.18.0.1:8090/v1
@@ -135,7 +135,11 @@ services:
     restart: unless-stopped
     mem_limit: 512m
     ports:
-      - "127.0.0.1:8080:8080"
+      # Host-side 8085, not 8080: the local inference server (vLLM) owns 8080
+      # on this box and binds it via --network=host, so publishing this here
+      # too means whichever starts second fails. The container still listens
+      # on 8080, so PORT and WITNESS_OAUTH_EDGE_URL below are unaffected.
+      - "127.0.0.1:8085:8080"
     networks:
       - default
       - platform

@@ -13,7 +13,7 @@ serve 3443 4180 "Witness studio (behind oauth2-proxy)"
 serve 3501 3501 "Investment Studio agent-service (also the panels origin)"
 serve 3543 3502 "Investment Studio"
 serve 3600 3110 "Mongoku (read-only MongoDB browser)"
-serve 8443 8080 "Witness Google OAuth callback"
+serve 8443 8085 "Witness Google OAuth callback"
 
 # Path-based, on the tailnet name itself: https://server/llm/ reaches the local
 # inference shim without anyone remembering a port. tailscale strips the prefix

@@ -15,7 +15,7 @@
 # ANTHROPIC_WORKSPACE_ID (wrkspc_..., not a secret) is needed only for Anthropic keys that are not
 # scoped to a workspace; it is sent as a header with every request.
 #
-# The production Witness env files (docker-compose.nuc.env, docker-compose.vps.env) are left
+# The production Witness env files (docker-compose.server.env, docker-compose.vps.env) are left
 # alone unless --include-production is given. --restart recreates the services that read the
 # keys at startup (the Investment workbench; also the production Witness agent-service with
 # --include-production; a few seconds of downtime each). Without it the script prints the
@@ -38,8 +38,8 @@ files=$(grep -lE '^(ANTHROPIC|OPENAI)_API_KEY=' "$ENV_DIR"/*.env 2>/dev/null || 
 # The production Witness env files are left alone unless asked: its image may predate a key type
 # (for example one that needs ANTHROPIC_WORKSPACE_ID), and a bad key there breaks a live service.
 if [ "$include_prod" != 1 ]; then
-  skipped=$(printf '%s\n' "$files" | grep -E '/docker-compose\.(nuc|vps)\.env$' || true)
-  files=$(printf '%s\n' "$files" | grep -vE '/docker-compose\.(nuc|vps)\.env$' || true)
+  skipped=$(printf '%s\n' "$files" | grep -E '/docker-compose\.(server|vps)\.env$' || true)
+  files=$(printf '%s\n' "$files" | grep -vE '/docker-compose\.(server|vps)\.env$' || true)
 fi
 # Never rewrite the file the new keys were read from.
 [ -z "$from_file" ] || files=$(printf '%s\n' "$files" | grep -vxF "$(cd "$(dirname "$from_file")" && pwd)/$(basename "$from_file")" || true)
@@ -144,7 +144,7 @@ done
 unset ak ok
 
 recreate_workbench='(cd '"$HERE"'/.. && . ./env.sh && docker compose -f studios/investment.yml --env-file "$ENV_DIR/benchmark.env" up -d agent-service)'
-recreate_witness='(cd '"$HERE"'/.. && . ./env.sh && docker compose -f studios/nuc.yml --env-file "$ENV_DIR/docker-compose.nuc.env" up -d agent-service)'
+recreate_witness='(cd '"$HERE"'/.. && . ./env.sh && docker compose -f studios/server.yml --env-file "$ENV_DIR/docker-compose.server.env" up -d agent-service)'
 if [ "$restart" = 1 ]; then
   eval "$recreate_workbench" >/dev/null 2>&1 && echo "recreated the Investment workbench agent-service"
   if [ "$include_prod" = 1 ]; then eval "$recreate_witness" >/dev/null 2>&1 && echo "recreated the Witness agent-service"; fi

@@ -10,7 +10,7 @@
 .next/
 benchmark-state/
 dist/
-docker-compose.nuc.yml
+docker-compose.server.yml
 migration_backups/
 node_modules/
 oauth2-proxy-emails.txt

@@ -8,7 +8,7 @@ set -euo pipefail
 . "$(dirname "$0")/../env.sh"
 cd "$ENV_DIR"
 ENV_FILE=benchmark.env
-PROD_ENV=docker-compose.nuc.env
+PROD_ENV=docker-compose.server.env
 [ -f "$ENV_FILE" ] && { echo "$ENV_FILE already exists; leaving it alone."; exit 0; }
 
 ROOT_PW=$(grep '^MONGO_ROOT_PASSWORD=' "$MONGO_ENV" | cut -d= -f2)

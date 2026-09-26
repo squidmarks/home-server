@@ -13,7 +13,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 . "$HERE/../env.sh"
 cd "$BENCH_DIR"
 ENV_FILE=$ENV_DIR/bench.env
-PROD_ENV=$ENV_DIR/docker-compose.nuc.env
+PROD_ENV=$ENV_DIR/docker-compose.server.env
 MONGO_ROOT_PW=$(grep '^MONGO_ROOT_PASSWORD=' "$MONGO_ENV" | cut -d= -f2)
 MONGO_URI_ROOT="mongodb://root:${MONGO_ROOT_PW}@localhost:27017/?authSource=admin"
 

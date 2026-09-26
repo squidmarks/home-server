@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Copy this repo to the box's ~/infra and apply what changed.
-#   ./deploy.sh [host]            (default host: gpu, an ssh alias)
+#   ./deploy.sh [host]            (default host: server, an ssh alias)
 # Never copies secrets or data: *.env files and mongo/data* are excluded and untouched.
 set -euo pipefail
 cd "$(dirname "$0")"
-HOST="${1:-gpu}"
+HOST="${1:-server}"
 rsync -a --exclude '.git/' --exclude '*.env' --exclude '.env' --exclude 'node_modules/' \
   --exclude 'mongo/data*/' ./ "$HOST":infra/
 # Restarting the worker mid-job would abandon the run in flight, so wait for it.

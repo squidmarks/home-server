@@ -26,7 +26,10 @@ services:
       ROUTER_MODEL: ${BENCH_MODEL}
       # llama.cpp on 8090 by default; the radiance/vLLM stack serves on 8080.
       # Only one can hold the card at a time, so this selects which is in play.
-      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://172.18.0.1:8090/v1}
+      # The shim (8091), not llama.cpp direct (8090): one metrics shape for
+      # either engine, per-request energy, and a clear refusal when the model
+      # asked for is not the one loaded on the card.
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://172.18.0.1:8091/v1}
       # Per-request thinking settings for the local model (JSON), set per run by bench-dev.sh.
       LOCAL_LLM_CHAT_TEMPLATE_KWARGS: ${LOCAL_LLM_CHAT_TEMPLATE_KWARGS:-}
       # Pins the clock the studio stamps into every turn. Empty in production,

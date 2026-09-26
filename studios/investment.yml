@@ -32,7 +32,10 @@ services:
       PROFILES: "@agent-studio/benchmark-engine"
       DEFAULT_MODEL: ${BENCHMARK_MODEL:-claude-sonnet-5}
       ROUTER_MODEL: ${BENCHMARK_MODEL:-claude-sonnet-5}
-      LOCAL_LLM_BASE_URL: http://172.18.0.1:8090/v1
+      # The shim (8091), not llama.cpp direct (8090): one metrics shape for
+      # either engine, per-request energy, and a clear refusal when the model
+      # asked for is not the one loaded on the card.
+      LOCAL_LLM_BASE_URL: http://172.18.0.1:8091/v1
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       # Needed only for keys that are not scoped to a workspace; leave blank otherwise.
       ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
