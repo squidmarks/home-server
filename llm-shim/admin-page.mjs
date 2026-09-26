@@ -22,10 +22,16 @@ export function adminPage() {
  button[disabled]{opacity:.5;cursor:default}
  pre{background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:10px;overflow:auto;font-size:12px;max-height:220px;margin:10px 0 0}
  .pill{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+ .crumb{display:inline-block;margin:0 0 14px;color:var(--muted);text-decoration:none;font-size:13px}
+ .crumb:hover{color:var(--accent)}
 </style>
 <main>
+ <!-- Back to the index. nginx mounts this under /llm/, so the link is the
+      site root, not a relative hop: a relative "../" lands on /llm/ and
+      redirects straight back here. -->
+ <a class="crumb" href="/">&larr; server</a>
  <h1>Local inference</h1>
- <p class="sub">One endpoint in front of the GPU. Only one engine can hold the card, so switching stops one and starts the other.</p>
+ <p class="sub">One endpoint in front of the GPU. The card holds one model at a time: loading another stops the one running, and takes a few minutes. Requests for a model that is not loaded are refused, never queued.</p>
  <div id="app"><p class="note">Loading…</p></div>
 </main>
 <script>
@@ -50,33 +56,48 @@ async function draw(){
   let s; try { s = await (await fetch(BASE + "/admin/status")).json(); }
   catch { app.innerHTML = '<div class="card">Could not reach the shim.</div>'; return; }
   const sw = s.switching && !s.switching.finishedAt;
-  const engines = Object.entries(s.engines).map(([id,e]) => \`
+  // Models are the unit here, not engines. A studio asks for a model id; which
+  // engine serves it is ours to change. One card, one model: loading another
+  // stops this one, so the button is a deliberate act and never a side effect
+  // of a request arriving.
+  const models = (s.models || []).map(m => \`
     <div class="card"><div class="row">
-      <span class="dot \${e.health}"></span>
-      <span class="name">\${esc(e.name)}</span>
-      \${s.backend===id?'<span class="pill">in use</span>':''}
+      <span class="dot \${m.resident ? 'up' : 'down'}"></span>
+      <span class="name">\${esc(m.name)}</span>
+      \${m.resident ? '<span class="pill">loaded</span>' : ''}
       <span class="spacer"></span>
-      <span class="note">\${esc(e.url)}</span>
-      <button class="\${s.backend===id?'':'primary'}" \${(s.backend===id||sw||busy||!s.canSwitch||s.inFlight>0)?'disabled':''}
-        onclick="switchTo('\${id}')">\${s.backend===id?'Active':'Switch to this'}</button>
+      <span class="note">\${esc(m.id)} · \${esc(m.engine)}</span>
+      <button class="\${m.resident?'':'primary'}" \${(m.resident||sw||busy||!s.canSwitch||s.inFlight>0)?'disabled':''}
+        onclick="loadModel('\${m.id}')">\${m.resident?'Loaded':'Load this'}</button>
     </div></div>\`).join("");
+  const engineNote = Object.entries(s.engines)
+    .map(([id,e]) => esc(e.name) + " " + e.health).join(" · ");
   const notes = [];
   if (!s.canSwitch) notes.push("Switching is not configured on this host (SWITCH_CMD unset).");
-  if (s.inFlight > 0) notes.push(s.inFlight + " request(s) in flight — switching is blocked until idle.");
-  app.innerHTML = engines
+  if (s.inFlight > 0) notes.push(s.inFlight + " request(s) in flight — loading is blocked until idle.");
+  if (!s.model) notes.push("No model is loaded: requests are refused until one is.");
+  const r = s.residency || {};
+  if (r.canSwitchAt) notes.push("Held less than the " + Math.round((r.minMs||0)/60000)
+    + " min minimum residency — another model can be loaded after "
+    + new Date(r.canSwitchAt).toLocaleTimeString() + ".");
+  app.innerHTML = models
     + (sw ? \`<div class="card"><div class="row"><span class="dot unknown"></span>
-        <span class="name">Switching to \${esc(s.switching.to)}…</span>
+        <span class="name">Loading \${esc(s.switching.to)}…</span>
         <span class="note">this takes minutes: vLLM compiles kernels, llama.cpp reloads ~16&nbsp;GB</span></div>
         <pre>\${esc(s.switching.log || "starting…")}</pre></div>\` : "")
+    + \`<div class="card"><div class="row"><span class="name">Engines</span><span class="spacer"></span>
+        <span class="note">\${engineNote}</span></div></div>\`
     + \`<div class="card"><div class="row"><span class="name">Power</span><span class="spacer"></span>
         <span class="note">\${s.power.plug ? esc(s.power.plug)+" · idle "+s.power.idleWatts+" W · "+esc(s.power.schedule||"flat rate") : "no meter configured"}</span></div></div>\`
     + (notes.length ? \`<div class="card note">\${notes.map(esc).join("<br>")}</div>\` : "");
 }
-async function switchTo(id){
-  if (!confirm("Switch the GPU to " + id + "? The other engine stops, and this takes a few minutes.")) return;
+async function loadModel(id){
+  if (!confirm("Load " + id + "? The card holds one model, so whatever is loaded now stops. This takes a few minutes.")) return;
   busy = true; draw();
-  try { await fetch(BASE + "/admin/backend", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({backend:id})}); }
-  finally { busy = false; }
+  try {
+    const r = await fetch(BASE + "/admin/model", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({model:id})});
+    if (!r.ok) { const b = await r.json().catch(() => ({})); alert(b.error || ("HTTP " + r.status)); }
+  } finally { busy = false; }
   draw();
 }
 draw(); setInterval(draw, 4000);

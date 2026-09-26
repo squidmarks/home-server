@@ -20,12 +20,21 @@ import http from "node:http";
 import { spawn } from "node:child_process";
 import { ADAPTERS, adapterFor, detect } from "./adapters/index.mjs";
 import { energyOf, powerConfig, readPlug } from "./power.mjs";
+import { MODELS, modelFor, residentFrom } from "./models.mjs";
 
 const PORT = Number(process.env.PORT || 8091);
 const HOST = process.env.HOST || "0.0.0.0";
 const SWITCH_CMD = process.env.SWITCH_CMD || "";
 const POWER = powerConfig();
 const IDLE_WATTS = process.env.POWER_IDLE_WATTS ? Number(process.env.POWER_IDLE_WATTS) : null;
+// One card holds one model, and loading another takes minutes. Without a floor
+// on how long a model stays put, two studios wanting different models would
+// ping-pong the GPU and it would spend the day loading weights and answering
+// nothing. Refusing is better than thrashing.
+const MIN_RESIDENCY_MS = Number(process.env.MIN_RESIDENCY_MS || 10 * 60_000);
+// What a cold start costs, for Retry-After. Only a hint: the real wait is
+// whatever the engine takes, and the caller re-checks rather than trusting it.
+const SWAP_HINT_S = Number(process.env.SWAP_HINT_S || 240);
 
 // Requests in flight. The engine's own per-request numbers survive concurrency;
 // anything BRACKETED does not. A wall-socket reading cannot be divided between
@@ -37,6 +46,15 @@ let switching = null;              // { to, startedAt, log } while a switch runs
 // The last request's metrics decision, so the admin page can say why a number
 // is missing instead of showing a blank.
 let lastRequest = null;
+// Which model the engine says it is serving, and when we last looked. Read back
+// from /v1/models rather than remembered from what we asked for.
+let resident = null;
+let residentAt = 0;
+// Set when a switch completes, and spent by the first request after it, so a
+// cold start is reported as its own number instead of landing inside that
+// request\'s TTFT and making the model look catastrophically slow.
+let pendingSwapMs = null;
+let residentSince = 0;
 
 const json = (res, code, body) => {
   const s = JSON.stringify(body);
@@ -51,6 +69,25 @@ async function currentBackend() {
   return active;
 }
 
+/**
+ * Which model is loaded, according to the engine itself. Cached briefly so a
+ * busy request path does not re-ask on every call, and cleared outright by a
+ * switch. Believing our own record instead of asking is what let a failed start
+ * leave a stale name behind and a whole sweep arm run against a dead engine.
+ */
+async function residentModel(adapter, { maxAgeMs = 5000 } = {}) {
+  if (!adapter) return null;
+  if (resident && Date.now() - residentAt < maxAgeMs) return resident;
+  let served = [];
+  try {
+    const r = await fetch(`${adapter.baseUrl}/v1/models`, { signal: AbortSignal.timeout(2500) });
+    if (r.ok) served = ((await r.json())?.data ?? []).map(m => m.id).filter(Boolean);
+  } catch { /* engine down or starting */ }
+  resident = residentFrom(served);
+  residentAt = Date.now();
+  return resident;
+}
+
 /** The metrics object every response carries, whichever engine served it. */
 async function collect(adapter, { body, before, exclusive }) {
   const engine = adapter.fromBody(body) ?? (await adapter.sampleAfter(before?.counters, { exclusive }));
@@ -61,6 +98,14 @@ async function collect(adapter, { body, before, exclusive }) {
   });
   const out = { engine: adapter.id };
   if (engine) out.server = engine;
+  // Spent once. A cold start belongs to the switch, not to whichever request
+  // happened to arrive first -- charging it to that request is the same
+  // restart artifact that made every arm of the config sweep look better than
+  // the baseline until each arm\'s first cell was dropped.
+  if (pendingSwapMs != null) {
+    out.swapMs = pendingSwapMs;
+    pendingSwapMs = null;
+  }
   // Energy is the whole machine's, so it is only this request's when this
   // request was the only one running. Absent beats wrong -- but say WHY it is
   // absent, or a null downstream is indistinguishable from a broken meter.
@@ -85,6 +130,36 @@ async function proxy(req, res, adapter) {
   for await (const c of req) chunks.push(c);
   const raw = Buffer.concat(chunks);
   const wantsMetrics = url.pathname.endsWith("/chat/completions") || url.pathname.endsWith("/completions");
+
+  // A request for a model that is not loaded is answered NOW, not held open
+  // while the GPU loads it. agent-service gives this shim 300s and then retries
+  // three times; a cold start is budgeted at 15-20 minutes by the switch
+  // scripts themselves. Blocking would burn a quarter of an hour on a dead
+  // spinner and end in a timeout that says nothing. A 503 that names what is
+  // loaded and what was asked for is something a studio can actually render.
+  if (wantsMetrics) {
+    let want = null;
+    try { want = modelFor(JSON.parse(raw.toString("utf8"))?.model); } catch { /* not json */ }
+    const have = await residentModel(adapter);
+    // Unknown ids fall through on purpose: the engine may serve names this
+    // registry has never heard of, and its own error is better than our guess.
+    if (want && have && want.id !== have.id) {
+      const loading = switching && !switching.finishedAt ? switching.to : null;
+      res.writeHead(503, { "content-type": "application/json", "retry-after": String(SWAP_HINT_S) });
+      return res.end(JSON.stringify({
+        error: {
+          message: loading
+            ? `loading ${loading}; ${have.name} is still serving. Retry shortly.`
+            : `${want.name} is not loaded (${have.name} is). Switch models from the admin page, then retry.`,
+          type: "model_not_resident",
+          code: "model_not_resident",
+        },
+        requested: want.id,
+        resident: have.id,
+        loading,
+      }));
+    }
+  }
 
   inFlight += 1;
   const soleAtStart = inFlight === 1;
@@ -170,16 +245,47 @@ async function proxy(req, res, adapter) {
   res.end(text);
 }
 
-/** Start or stop engines through one script, with a fixed argument. */
-function runSwitch(to) {
-  switching = { to, startedAt: new Date().toISOString(), log: "" };
-  const p = spawn(SWITCH_CMD, [to], { shell: false });
+/**
+ * Load a model, through one script, with one key from a fixed set. The key
+ * comes from the registry and never from a request body: this process proxies
+ * untrusted bodies, so it must not be able to turn one into an argument to a
+ * privileged command.
+ */
+function runSwitch(model) {
+  const t0 = Date.now();
+  switching = { to: model.id, key: model.key, startedAt: new Date().toISOString(), log: "" };
+  // A DELIBERATELY NARROW environment. Node hands a child process.env by
+  // default, and this service's own PORT=8091 then reached the launcher, which
+  // reads PORT to decide where to serve: vLLM was told to bind the shim's port.
+  // It failed in 700ms with "port already in use" and, worse, the health probe
+  // that followed hit THIS process, got a 200, and reported the model as
+  // serving when nothing had started. Pass only what the scripts need.
+  const p = spawn(SWITCH_CMD, [model.key], {
+    shell: false,
+    env: {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME,
+      USER: process.env.USER,
+      LOGNAME: process.env.LOGNAME,
+      SHELL: process.env.SHELL,
+      LANG: process.env.LANG,
+    },
+  });
   const add = d => { switching.log = (switching.log + d.toString()).slice(-4000); };
   p.stdout.on("data", add);
   p.stderr.on("data", add);
   p.on("close", code => {
-    switching = { ...switching, finishedAt: new Date().toISOString(), exitCode: code };
-    active = adapterFor(to);
+    const ms = Date.now() - t0;
+    switching = { ...switching, finishedAt: new Date().toISOString(), exitCode: code, ms };
+    active = adapterFor(model.engine);
+    // Force the next residency check to ask the engine rather than answer from
+    // a cache that predates the switch.
+    resident = null;
+    residentAt = 0;
+    if (code === 0) {
+      pendingSwapMs = ms;
+      residentSince = Date.now();
+    }
     setTimeout(() => { if (switching?.finishedAt) switching = null; }, 60_000);
   });
 }
@@ -191,9 +297,21 @@ export const server = http.createServer(async (req, res) => {
       const states = {};
       for (const [id, a] of Object.entries(ADAPTERS)) states[id] = { name: a.name, url: a.baseUrl, health: await a.health() };
       const cur = await currentBackend();
+      const have = await residentModel(cur, { maxAgeMs: 0 });
+      const heldFor = residentSince ? Date.now() - residentSince : null;
       return json(res, 200, {
         backend: cur?.id ?? null,
         engines: states,
+        // The model the ENGINE says it is serving, and everything we know how
+        // to load. A studio addresses models by these ids; the engine behind
+        // one is ours to change and not the studio\'s to know.
+        model: have?.id ?? null,
+        models: Object.entries(MODELS).map(([id, m]) => ({
+          id, name: m.name, engine: m.engine, resident: have?.id === id,
+        })),
+        residency: { heldForMs: heldFor, minMs: MIN_RESIDENCY_MS,
+                     canSwitchAt: heldFor != null && heldFor < MIN_RESIDENCY_MS
+                       ? new Date(residentSince + MIN_RESIDENCY_MS).toISOString() : null },
         switching,
         inFlight,
         power: { plug: POWER.url || null, idleWatts: IDLE_WATTS, schedule: POWER.schedule?.name ?? null },
@@ -211,6 +329,35 @@ export const server = http.createServer(async (req, res) => {
       if (inFlight > 0) return json(res, 409, { error: `${inFlight} request(s) in flight; try again when idle` });
       runSwitch(to);
       return json(res, 202, { switching: true, to });
+    }
+    // Loading a model is an ADMIN action and never a side effect of a request.
+    // The studio\'s model picker is configuration -- set rarely, deliberately,
+    // by someone who is watching -- so that is when the cold start gets paid,
+    // not four hours later when a user happens to send a message.
+    if (url.pathname === "/admin/model" && req.method === "POST") {
+      const chunks = []; for await (const c of req) chunks.push(c);
+      let want = null;
+      try { want = modelFor(JSON.parse(Buffer.concat(chunks).toString()).model); } catch {}
+      if (!want) return json(res, 400, { error: "unknown model", models: Object.keys(MODELS) });
+      if (!SWITCH_CMD) return json(res, 501, { error: "no switch command configured (SWITCH_CMD)" });
+      if (switching && !switching.finishedAt) return json(res, 409, { error: `already loading ${switching.to}` });
+      if (inFlight > 0) return json(res, 409, { error: `${inFlight} request(s) in flight; try again when idle` });
+      const have = await residentModel(await currentBackend(), { maxAgeMs: 0 });
+      if (have?.id === want.id) return json(res, 200, { model: want.id, alreadyResident: true });
+      // The thrash guard. Forcing past it is allowed, but has to be asked for.
+      const held = residentSince ? Date.now() - residentSince : Infinity;
+      const force = new URL(req.url, "http://x").searchParams.get("force") === "1";
+      if (held < MIN_RESIDENCY_MS && !force) {
+        const waitS = Math.ceil((MIN_RESIDENCY_MS - held) / 1000);
+        res.writeHead(409, { "content-type": "application/json", "retry-after": String(waitS) });
+        return res.end(JSON.stringify({
+          error: `${have?.name ?? "the current model"} has only been loaded ${Math.round(held / 1000)}s; `
+               + `minimum residency is ${Math.round(MIN_RESIDENCY_MS / 1000)}s. Add ?force=1 to override.`,
+          retryAfterS: waitS,
+        }));
+      }
+      runSwitch(want);
+      return json(res, 202, { loading: want.id, engine: want.engine, estimateS: SWAP_HINT_S });
     }
     if (url.pathname === "/admin" || url.pathname === "/admin/") {
       const { adminPage } = await import("./admin-page.mjs");
