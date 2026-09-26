@@ -79,6 +79,28 @@ run_one() {
   # the call drew at the wall, which no engine can.
   export LOCAL_LLM_BASE_URL="${SHIM_BASE_URL:-http://172.18.0.1:8091/v1}"
 
+  # Whichever local model a case asks for, the card must actually be holding it.
+  # One card holds one model and loading another takes minutes, so a run started
+  # against the wrong resident model would otherwise produce a full set of
+  # results attributed to a model that never saw a single token. The shim
+  # answers with what the ENGINE reports, so a stale name file cannot satisfy
+  # this. Hosted models never reach here.
+  case "$model" in local-*)
+    shim_admin="${SHIM_ADMIN_URL:-http://172.18.0.1:8091}"
+    shim_status=$(curl -s -m 8 "$shim_admin/admin/status" 2>/dev/null || echo "")
+    shim_model=$(printf '%s' "$shim_status" | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("model") or "")
+except Exception: print("")' 2>/dev/null || echo "")
+    if [ -z "$shim_status" ]; then
+      record_failure "$run_id" "$label" "$id" "the inference shim is not answering; nothing can have served this case"
+      return 0
+    fi
+    if [ "$shim_model" != "$model" ]; then
+      record_failure "$run_id" "$label" "$id" "the card is holding ${shim_model:-no model}, but this case asked for $model"
+      return 0
+    fi
+  ;; esac
+
   local server_json="" observed=""
   case "$model" in
     # vLLM serves this one, not llama.cpp, so llama-server's profile says nothing
@@ -86,12 +108,23 @@ run_one() {
     # that had no part in producing it -- a label, not an identity. Record what
     # actually served it instead.
     *mxfp4*)
-      server_json=$(curl -s -m 5 "${VLLM_BASE_URL:-http://172.18.0.1:8080/v1}/models" 2>/dev/null | python3 -c '
-import json,sys
-try:
-    ids=[m["id"] for m in json.load(sys.stdin).get("data",[])]
-    print(json.dumps({"engine":"vllm","served":ids}))
+      server_json=$("$HERE/../llama/vllm-profiles.sh" describe 2>/dev/null || echo "")
+      observed=$(printf '%s' "$server_json" | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("profile","") or "")
 except Exception: print("")' 2>/dev/null || echo "")
+      # Health first: a name file can be stale or wrong, but an engine that does
+      # not answer cannot have produced anything. Checking the label alone let a
+      # whole arm run against a dead server while every check passed.
+      if [ "$(printf '%s' "$server_json" | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("health",""))
+except Exception: print("")' 2>/dev/null)" != "up" ]; then
+        record_failure "$run_id" "$label" "$id" "vLLM is not answering; nothing can have served this case"
+        return 0
+      fi
+      if [ -n "${BENCH_EXPECT_PROFILE:-}" ] && [ "$observed" != "$BENCH_EXPECT_PROFILE" ]; then
+        record_failure "$run_id" "$label" "$id" "vLLM is on profile ${observed:-unknown}, but this condition asked for $BENCH_EXPECT_PROFILE"
+        return 0
+      fi
     ;;
   esac
   case "$model" in local-qwen3-32b|local-qwen3.8-27b)
@@ -103,6 +136,24 @@ except Exception: print("")' 2>/dev/null || echo "")
       record_failure "$run_id" "$label" "$id" "the model server is on profile ${observed:-unknown}, but this condition asked for $BENCH_EXPECT_PROFILE"
       return 0
     fi
+  ;;
+  # Any other local model: no llama.cpp profile and no MXFP4 launcher speaks for
+  # it, so what served it is whatever the shim says is resident. Recorded rather
+  # than left blank -- a result with no server at all cannot be compared later.
+  #
+  # Only when nothing has spoken for it yet. The MXFP4 branch above matches
+  # local-qwen3.8-27b-mxfp4, which also matches local-* here: overwriting would
+  # replace that model's PROFILE (short-dflash, ctx64k-chunk4096 ...) with a bare
+  # engine name, and the configuration sweeps are entirely about which profile
+  # produced which number.
+  local-*)
+    [ -n "$server_json" ] && server_json="$server_json" || \
+    server_json=$(printf '%s' "$shim_status" | python3 -c 'import json,sys
+try:
+  d = json.load(sys.stdin)
+  print(json.dumps({"engine": d.get("backend"), "source": "shim",
+                    "model": d.get("model"), "health": "up"}))
+except Exception: print("")' 2>/dev/null || echo "")
   ;; esac
 
   if ! reset_db; then record_failure "$run_id" "$label" "$id" "could not reset the benchmark database"; return 0; fi

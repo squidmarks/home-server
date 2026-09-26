@@ -103,6 +103,10 @@ export function fromVllmCounters(before, after, { exclusive = true } = {}) {
     // at 36.6% acceptance buys). Dividing intervals by seconds gives steps per
     // second and reads three times too slow.
     predictedMs: itlSum ? Math.round(itlSum * 1000) : undefined,
+    // The step count itself, not just the quotient. A request is several calls,
+    // and tokens-per-step for the request is total tokens over total steps --
+    // which cannot be recovered from per-call averages.
+    steps: itlCount || undefined,
     tokensPerStep:
       itlCount > 0 && predictedTokens > 0
         ? Math.round((predictedTokens / itlCount) * 100) / 100

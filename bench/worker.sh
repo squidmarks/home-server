@@ -74,9 +74,14 @@ PY
       # The worker is the only thing that may restart the model server: it holds the
       # job, so nothing else can be running a case. Conditions arrive grouped by
       # profile, so this reloads the model as rarely as the job allows.
-      if [ -n "$profile" ] && [ "$profile" != "$("$HERE/../llama/profiles.sh" label 2>/dev/null)" ]; then
+      # Which engine's profiles these are. The model decides: the mxfp4
+      # checkpoint is vLLM's, everything else llama.cpp's. Both scripts take the
+      # same verbs, and both are read back by bench-dev.sh before a case runs.
+      local switcher="$HERE/../llama/profiles.sh"
+      case "$(field "$f" models)" in *mxfp4*) switcher="$HERE/../llama/vllm-profiles.sh" ;; esac
+      if [ -n "$profile" ] && [ "$profile" != "$("$switcher" label 2>/dev/null)" ]; then
         echo ">>> switching the model server to profile $profile" >>"$log"
-        if ! "$HERE/../llama/profiles.sh" set "$profile" >>"$log" 2>&1; then
+        if ! "$switcher" set "$profile" >>"$log" 2>&1; then
           echo "!! could not switch to profile $profile; skipping this condition" >>"$log"
           rc=1
           continue
