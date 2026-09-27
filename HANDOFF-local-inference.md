@@ -7,7 +7,7 @@ repos are the source of truth, this is the map.
 
 Make the GPU box the local server and find out which local and hosted models can
 **develop** agents (build them well, following the studio's guidance) and later **execute**
-them. Investment returns are not the point. The Agent Studio exists so Scitara can replace
+them. Investment returns are not the point. The Agent Studio exists to replace
 deterministic orchestrations with agents, so the bench doubles as the edge-case validation
 tool for that (notes: `agent-studio/docs/agent-validation-with-the-bench.md`).
 
