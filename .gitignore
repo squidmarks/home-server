@@ -6,3 +6,27 @@ mongo/data/
 mongo/data-*/
 node_modules/
 .DS_Store
+
+# This repo is PUBLIC. Anything below is either a secret, machine state, or a
+# local artifact -- none of it belongs in a public history, and a history is
+# not something you can take back once it is pushed.
+*.env.*
+!*.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+id_rsa*
+id_ed25519*
+.htpasswd
+credentials*
+*secret*
+!*secret*.example
+.env.local
+*.log
+*.tmp
+.cache/
+bench-ui-data/
+benchmark-state/
+results/
