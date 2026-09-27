@@ -22,7 +22,7 @@ docker exec "$MONGO_CONTAINER" mongosh --quiet "mongodb://root:${ROOT_PW}@localh
 envval() { grep "^$1=" "$PROD_ENV" | head -1 | cut -d= -f2-; }
 mkdir -p benchmark-state
 {
-  echo "BENCHMARK_HOST=server.example.ts.net"
+  echo "BENCHMARK_HOST=${TAILNET_FQDN:?set TAILNET_FQDN to this box tailnet name, see env.sh}"
   echo "BENCHMARK_MODEL=claude-sonnet-5"
   echo "BENCHMARK_DB_PASSWORD=$DB_PW"
   echo "SECRETS_ENCRYPTION_KEY=$(openssl rand -base64 32)"

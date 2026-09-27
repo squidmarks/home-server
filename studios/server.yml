@@ -7,8 +7,8 @@
 #   1. Builds images locally (build:, not image:) — the server is the same
 #      amd64 architecture as production, so no Docker Hub push/pull round
 #      trip and no QEMU cross-compile like the Mac needed.
-#   2. WITNESS_HOST is server.example.ts.net (the box's own Tailscale
-#      hostname), not a dedicated witness-studio hostname — this box is also
+#   2. WITNESS_HOST is the box's own Tailscale hostname (see TAILNET_FQDN in
+#      env.sh), not a dedicated witness-studio hostname — this box is also
 #      the local LLM inference server and will run other services later.
 #
 # Mongo lives in its own standalone stack (~/infra/mongo on the server), not

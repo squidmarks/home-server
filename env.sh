@@ -12,6 +12,14 @@ DOCKER_NETWORK="${DOCKER_NETWORK:-platform}"                                # sh
 export LLAMA_METRICS_URL="${LLAMA_METRICS_URL:-http://172.18.0.1:8090/metrics}"
 export RUN_STATE_DIR="${RUN_STATE_DIR:-$ENV_DIR/benchmark-run-state}"
 export BENCHMARK_STATE_DIR="${BENCHMARK_STATE_DIR:-$ENV_DIR/benchmark-state}"
+# The box's own tailnet name. `tailscale serve` answers on the FQDN and nothing
+# else, so any URL that points at a served port has to use it -- a link built
+# from whatever hostname a page was opened at does not connect. Deliberately
+# has no default: it identifies a private network, so it lives in the
+# environment (or a gitignored .env) rather than in a public repo. Unset means
+# port links and generated hosts are left blank rather than silently wrong.
+export TAILNET_FQDN="${TAILNET_FQDN:-}"
+
 export BENCH_USER_EMAIL="${BENCH_USER_EMAIL:-geoff.gerhardt@gmail.com}"                # studio user that owns the Witness agents
 # Stamped by sync-agent-studio.sh and read fresh on every job. It must NOT fall back
 # to an inherited BENCH_CODE_VERSION: the worker is a long-lived service that exports

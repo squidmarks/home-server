@@ -14,6 +14,11 @@ services:
     environment:
       PORT: "3090"
       HOST: "127.0.0.1"
+      # The tailnet name, for links to ports that `tailscale serve` publishes
+      # (see server.mjs). Set it in a gitignored home/.env -- compose reads that
+      # automatically -- rather than committing it: it identifies a private
+      # network. Unset just leaves those links blank.
+      TAILNET_FQDN: ${TAILNET_FQDN:-}
     volumes:
       - ./:/app:ro
     mem_limit: 128m
