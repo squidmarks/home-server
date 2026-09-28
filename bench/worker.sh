@@ -91,6 +91,7 @@ PY
       BENCH_SIM_MODEL=$(field "$f" simulator) BENCH_JUDGE_MODEL=$(field "$f" judge) \
       BENCH_LABEL_SUFFIX="$suffix" BENCH_KWARGS="$kwargs" BENCH_INFERENCE_JSON="$info" \
       BENCH_EXPECT_PROFILE="$profile" BENCH_REPLAY_FROM="$(field "$f" replayFrom)" \
+      BENCH_TIMEOUT_MINUTES="$(field "$f" timeoutMinutes)" \
         $runner $(field "$f" models) >>"$log" 2>&1 || rc=$?
     done <<< "$conds"
   fi
