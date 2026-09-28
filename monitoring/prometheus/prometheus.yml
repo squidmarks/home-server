@@ -19,10 +19,18 @@ scrape_configs:
     static_configs:
       - targets: ["mongodb-exporter:9216"]
 
-  - job_name: llama # llama-server needs the --metrics flag; bound to the docker gateway
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["172.18.0.1:8090"]
+  # DISABLED. llama-server runs with -np 1 -- ONE slot -- and llama.cpp's
+  # /metrics handler submits a task to the same inference queue that serves real
+  # requests. Scraping it every 15s put a task into that queue 229 times in 53
+  # minutes, each one cancelled, alongside a benchmark case that then sat for
+  # nearly an hour with the GPU at 0%. Whether the scrape starves inference or
+  # merely coincides with it is unproven, but a monitor that injects work into
+  # the thing it is monitoring cannot stay in the loop while we are measuring
+  # that thing. Re-enable with a long interval (5m+) if the numbers are wanted.
+  # - job_name: llama # llama-server needs the --metrics flag; bound to the docker gateway
+  #   metrics_path: /metrics
+  #   static_configs:
+  #     - targets: ["172.18.0.1:8090"]
 
   - job_name: studio # Agent Studio request history (studio-exporter reads Mongo)
     static_configs:
