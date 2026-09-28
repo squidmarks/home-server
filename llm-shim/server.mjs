@@ -163,6 +163,22 @@ async function proxy(req, res, adapter) {
 
   inFlight += 1;
   const soleAtStart = inFlight === 1;
+  // Release the slot when the RESPONSE ends, however it ends -- not at the
+  // bottom of this function. A client that disconnects mid-stream throws out of
+  // the forwarding loop and never reaches a decrement, and the counter then
+  // stays high for the life of the process. That is not a cosmetic leak:
+  // everything downstream reads inFlight to decide whether a request had the
+  // machine to itself, so ONE leak silently marks every later request "shared"
+  // and suppresses its energy permanently. Idempotent because 'close' and
+  // 'finish' can both fire.
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    inFlight -= 1;
+  };
+  res.on("close", release);
+  res.on("finish", release);
   const before = wantsMetrics
     ? { power: await readPlug(POWER.url), counters: await adapter.sampleBefore() }
     : null;
@@ -175,7 +191,7 @@ async function proxy(req, res, adapter) {
       body: ["GET", "HEAD"].includes(req.method) ? undefined : raw,
     });
   } catch (e) {
-    inFlight -= 1;
+    release();
     return json(res, 502, { error: { message: `local inference server unreachable: ${e.message}` } });
   }
 
@@ -228,7 +244,7 @@ async function proxy(req, res, adapter) {
       local_metrics: metrics,
     })}\n\n`);
     res.end("data: [DONE]\n\n");
-    inFlight -= 1;
+    release();
     return;
   }
 
@@ -237,10 +253,10 @@ async function proxy(req, res, adapter) {
   try { body = JSON.parse(text); } catch { /* not json */ }
   if (wantsMetrics && body) {
     body.local_metrics = await collect(adapter, { body, before, exclusive: exclusive() });
-    inFlight -= 1;
+    release();
     return json(res, upstream.status, body);
   }
-  inFlight -= 1;
+  release();
   res.writeHead(upstream.status, { "content-type": ct });
   res.end(text);
 }

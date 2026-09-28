@@ -99,6 +99,24 @@ except Exception: print("")' 2>/dev/null || echo "")
       record_failure "$run_id" "$label" "$id" "the card is holding ${shim_model:-no model}, but this case asked for $model"
       return 0
     fi
+    # And the card must be IDLE. A studio on this box -- a scheduled agent, a
+    # chat session -- shares the GPU, and a case measured against contention
+    # reports latencies that describe two workloads. The shim flags its own
+    # metrics "shared" when that happens, but only the ENERGY is suppressed:
+    # wall-clock, TTFT and tok/s are recorded as if the run had the machine.
+    # Settle briefly first, because the previous case's last response can still
+    # be draining when this one starts.
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      inflight=$(curl -s -m 8 "$shim_admin/admin/status" 2>/dev/null | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("inFlight") or 0)
+except Exception: print(0)' 2>/dev/null || echo 0)
+      [ "${inflight:-0}" -eq 0 ] && break
+      sleep 3
+    done
+    if [ "${inflight:-0}" -ne 0 ]; then
+      record_failure "$run_id" "$label" "$id" "the GPU has ${inflight} request(s) in flight from something else; a timing measured against contention is not this model's"
+      return 0
+    fi
   ;; esac
 
   local server_json="" observed=""
@@ -169,6 +187,7 @@ except Exception: print("")' 2>/dev/null || echo "")
     -e BENCH_SERVER_JSON="$server_json" \
     -e BENCH_REPLAY_FROM="${BENCH_REPLAY_FROM:-}" \
     -e BENCH_SIM_MODEL="${BENCH_SIM_MODEL:-}" -e BENCH_JUDGE_MODEL="${BENCH_JUDGE_MODEL:-}" \
+    -e BENCH_TIMEOUT_MINUTES="${BENCH_TIMEOUT_MINUTES:-}" \
     -e SHELLY_URL="${SHELLY_URL:-}" -e POWER_RATE_PER_KWH="${POWER_RATE_PER_KWH:-}" \
     -e POWER_IDLE_WATTS="${POWER_IDLE_WATTS:-}" \
     node:22-slim sh -c "npm i --silent --no-audit --no-fund >/dev/null 2>&1 && node run-dev.mjs '$model' '$id'"
