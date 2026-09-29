@@ -109,6 +109,31 @@ for taken in "$JOBS_DIR"/queue/*.json.taken; do
   mv "$taken" "$JOBS_DIR/queue/$id.json.done"
 done
 
+# A run writes a live file and keeps stamping it; the UI calls one "no heartbeat"
+# once it is more than 60 s old (scripts/bench/lib/live.mjs, staleMs) and shows it
+# in red. Nothing ever removed them, so a runner that died without cleaning up --
+# a power cut on 2026-09-29, a `docker stop bench-runner` to abort a misconfigured
+# run the same day -- left a red row that only went away when someone noticed and
+# deleted the file by hand. Two of them accumulated in one day.
+#
+# Sweeping on startup is safe because the worker is restarting: nothing it started
+# is still running. Staleness is still checked rather than clearing the directory,
+# because the loop below tolerates runs started BY HAND (see the pgrep guard), and
+# one of those may legitimately be beating right now.
+LIVE_DIR="${LIVE_DIR:-$BENCH_DIR/results/.live}"
+if [ -d "$LIVE_DIR" ]; then
+  swept=0
+  for lf in "$LIVE_DIR"/*.json; do
+    [ -e "$lf" ] || continue
+    age=$(( $(date +%s) - $(stat -c %Y "$lf") ))
+    if [ "$age" -gt 60 ]; then
+      echo "sweeping stale live file (${age}s since last heartbeat): $(basename "$lf")" >&2
+      rm -f "$lf" && swept=$((swept + 1))
+    fi
+  done
+  [ "$swept" -gt 0 ] && echo "swept $swept stale live file(s)" >&2
+fi
+
 echo "worker watching $JOBS_DIR/queue"
 while true; do
   next=$(ls -1 "$JOBS_DIR"/queue/*.json 2>/dev/null | head -1)
