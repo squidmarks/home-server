@@ -26,6 +26,14 @@ profile_env() {
     long-dflash)  echo "SPEC_METHOD=dflash SPEC=7 MAXSEQS=3 CHUNK=2560 MAXLEN=220000" ;;
     # The same shape with the MTP head instead of the block-diffusion drafter.
     long-mtp)     echo "SPEC_METHOD=mtp SPEC=4 MAXSEQS=3 CHUNK=2560 MAXLEN=220000" ;;
+    # ctx128k-chunk4096 is short-dflash with ONLY the context changed, so it stays
+    # attributable -- the earlier shape comparison moved context AND chunk together
+    # and gained 8% that could not be assigned to either. Added 2026-09-29, when
+    # llama.cpp went to the model's full 262144 and left vLLM the shortest of the
+    # three at 65536. KV is ~45.6 KB/token at fp8 (measured: 4.7 GiB holding 107,887
+    # tokens), so 131072 needs ~5.7 GiB. calibrate-kv sizes that per shape; vLLM
+    # refuses to start if the cache cannot hold one whole sequence, so a failed
+    # start here means the KV budget needs recalibrating, not that 128K is out.
     # 64K is well above the 42,860-token peak this workload has ever reached,
     # and buys a 4096 prefill chunk. This is calibrate-kv's own TP=1 default.
     short-dflash) echo "SPEC_METHOD=dflash SPEC=7 MAXSEQS=8 CHUNK=4096 MAXLEN=65536" ;;
@@ -36,6 +44,7 @@ profile_env() {
     ctx64k-chunk2560)  echo "SPEC_METHOD=dflash SPEC=7 MAXSEQS=8 CHUNK=2560 MAXLEN=65536" ;;
     ctx64k-chunk4096)  echo "SPEC_METHOD=dflash SPEC=7 MAXSEQS=8 CHUNK=4096 MAXLEN=65536" ;;
     ctx64k-chunk8192)  echo "SPEC_METHOD=dflash SPEC=7 MAXSEQS=8 CHUNK=8192 MAXLEN=65536" ;;
+    ctx128k-chunk4096) echo "SPEC_METHOD=dflash SPEC=7 MAXSEQS=8 CHUNK=4096 MAXLEN=131072" ;;
     ctx220k-chunk4096) echo "SPEC_METHOD=dflash SPEC=7 MAXSEQS=8 CHUNK=4096 MAXLEN=220000" ;;
     # Draft-depth sweep on the short shape, where prefill is not the bottleneck.
     short-dflash-3)  echo "SPEC_METHOD=dflash SPEC=3 MAXSEQS=8 CHUNK=4096 MAXLEN=65536" ;;
@@ -48,7 +57,7 @@ profile_env() {
     *) return 1 ;;
   esac
 }
-PROFILES="long-dflash short-dflash short-dflash-3 short-dflash-5 short-dflash-9 ctx64k-chunk2560 ctx64k-chunk4096 ctx64k-chunk8192 ctx220k-chunk4096 long-mtp short-mtp"
+PROFILES="long-dflash short-dflash short-dflash-3 short-dflash-5 short-dflash-9 ctx64k-chunk2560 ctx64k-chunk4096 ctx64k-chunk8192 ctx128k-chunk4096 ctx220k-chunk4096 long-mtp short-mtp"
 
 running() { curl -s -m 3 "$BASE/health" >/dev/null 2>&1 && echo up || echo down; }
 
