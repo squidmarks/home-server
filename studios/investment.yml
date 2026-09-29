@@ -36,6 +36,18 @@ services:
       # either engine, per-request energy, and a clear refusal when the model
       # asked for is not the one loaded on the card.
       LOCAL_LLM_BASE_URL: http://172.18.0.1:8091/v1
+      # Qwen3.8-27B defaults to reasoning_effort "xhigh". Left unset, a probe on
+      # 2026-09-29 had it reason to the 8192-token cap and return NO answer on an
+      # event-watcher prompt -- twice, at temp 0 and at temp 0.6 -- which is the
+      # likeliest reason inv-event-watcher took 1853 s and 2828 s and scored
+      # lowest. At "medium" the same prompt answers in 2383 tokens, and llama.cpp
+      # output length lands within a few percent of vLLM's on every probe prompt.
+      # These are the DEFAULT: local-provider merges them under a request's own
+      # chat_template_kwargs, so a bench condition asking for a different effort
+      # wins. That merge is the fix for it having overwritten them wholesale --
+      # until the image carrying it is deployed, keep this in step with the
+      # effort a run asks for, or the run's label will not match what it ran.
+      LOCAL_LLM_CHAT_TEMPLATE_KWARGS: '{"reasoning_effort":"medium"}'
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       # Needed only for keys that are not scoped to a workspace; leave blank otherwise.
       ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
