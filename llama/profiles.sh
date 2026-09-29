@@ -17,10 +17,11 @@
 #               ngram        ngram-mod
 #   thinking    nopreserve   --no-reasoning-preserve (don't resend earlier thinking)
 #   prefill     cachereuse   --cache-reuse 256: reuse a common prefix by KV shifting
-#               ctx32k|64k   a smaller KV allocation than the 128K default
+#               ctx32k|64k|128k  a smaller KV allocation than the 256K default
 #               ub1024|2048  a larger physical batch for prompt processing
 #               cram16|cram0 prompt-cache size: 16 GiB, or 0 to turn it off
-#   sampling    temp0        --temp 0: greedy, so the same input takes the same path
+#   sampling    temp0        --temp 0: greedy. CONTRAINDICATED -- see the note below;
+#                            kept only to reproduce the runs that used it
 #
 # The prefill modifiers exist because prompt processing is where the time actually
 # goes: 45% and then 63% of the time inside the model on two measured benchmark
@@ -35,14 +36,37 @@
 # cache off as a control: if that is much worse, the cache is load-bearing and more
 # of it should help. The host has 30 GiB of RAM, so 16 GiB is the sensible ceiling.
 #
-# temp0 exists because nothing was ever setting a temperature: the router sends
-# none and llama.cpp's own default is 0.80, so every run sampled creatively and
-# wandered down a different path. In each set of repeats measured on 2026-09-22 the
-# slowest run was the one that made the MOST tool calls (482 s / 16 calls against
-# 317 s / 10 on the same cell), so the spread we were averaging out with three
-# repeats was mostly of our own making. Greedy decoding removes that source; the
-# simulated user, the judge and the live account remain, so it reduces the need for
-# repeats rather than removing it.
+# The context default is the model's own trained maximum: the GGUF declares
+# qwen35.context_length = 262144 and rope.freq_base = 1e7 (natively long-context,
+# not YaRN-extended), and we had been running half of it for no reason. It is
+# affordable because qwen35.full_attention_interval = 4 -- only ~16 of 65 blocks
+# hold a growing cache -- so at 4 KV heads x (256+256) the KV is ~34 KB/token:
+# ~4.3 GiB at 128K, ~8.6 GiB at 256K, against 31.85 GiB of VRAM with the weights
+# taking 15.3. Measured free VRAM at the old 131072 was 9.88 GiB, so the second
+# 128K was already paid for. ctx128k steps back down to reproduce earlier runs.
+#
+# The shared flags carry Qwen's published thinking-mode sampling in full --
+# temp 0.6, top-p 0.95, top-k 20, min-p 0. Only top-p and top-k were set before,
+# so llama.cpp's own 0.80 default temperature applied and the comment here
+# claiming "Qwen's own sampling defaults" was two thirds true.
+#
+# temp0 exists because nothing was setting a temperature: the router sends none
+# and every run sampled creatively and wandered down a different path. In each
+# set of repeats measured on 2026-09-22 the slowest run was the one that made the
+# MOST tool calls (482 s / 16 calls against 317 s / 10 on the same cell), so the
+# spread we were averaging out with three repeats was mostly of our own making.
+#
+# That diagnosis was right and the fix was wrong. Every Qwen3 model card says
+# "DO NOT use greedy decoding, as it can lead to performance degradation and
+# endless repetitions", and on 2026-09-29 a probe caught exactly that: an
+# event-watcher prompt ran to the 8192-token cap emitting 37k characters of
+# reasoning and NO answer, while the same prompt on vLLM finished in 2392
+# tokens. inv-event-watcher is also the bench case that took 1853 s and 2828 s
+# and scored lowest, so the runs that used temp0 were partly measuring this.
+#
+# The determinism it bought was illusory anyway: the bench drives a live
+# simulator model, and identical cases still varied 2.8x in wall clock. Use the
+# shared temp 0.6 default. Reach for temp0 only to reproduce an old run.
 #
 # "base" means no modifiers. "mtp3-nopreserve" against "mtp3" isolates reasoning
 # preserve; plain "nopreserve" against "mtp3" would also drop speculative decoding,
@@ -60,7 +84,7 @@ PORT="${LLAMA_PORT:-8090}"
 MODEL_DEFAULT="$MODELS/Qwen3.8-27B-UD-Q4_K_M.gguf"
 MTP_DRAFT="$MODELS/mtp-Qwen3.8-27B-Q4_0.gguf"
 
-MODIFIERS="q6 moe mtp2 mtp3 mtp5 ngram nopreserve cachereuse ctx32k ctx64k ub1024 ub2048 cram16 cram0 temp0"
+MODIFIERS="q6 moe mtp2 mtp3 mtp5 ngram nopreserve cachereuse ctx32k ctx64k ctx128k ub1024 ub2048 cram16 cram0 temp0"
 EXAMPLES="base mtp3 mtp3-temp0 mtp3-ngram mtp3-nopreserve mtp3-cachereuse mtp3-ctx64k mtp3-ub2048 q6-mtp3 moe"
 CACHE_REUSE_CHUNK="${CACHE_REUSE_CHUNK:-256}"
 
@@ -69,7 +93,7 @@ CACHE_REUSE_CHUNK="${CACHE_REUSE_CHUNK:-256}"
 # because a modifier can change it, and it keeps its place in the line so a profile
 # that does not touch it renders exactly as before.
 common() {
-  echo "-ngl 99 -c ${1:-131072} -np 1 --cache-type-k q8_0 --cache-type-v q8_0 --top-p 0.95 --top-k 20 --jinja --metrics"
+  echo "-ngl 99 -c ${1:-262144} -np 1 --cache-type-k q8_0 --cache-type-v q8_0 --temp 0.6 --top-p 0.95 --top-k 20 --min-p 0 --jinja --metrics"
 }
 
 # Read a profile name into P_MODEL, P_FLAGS, P_ALIAS and the canonical P_NAME.
@@ -90,6 +114,7 @@ parse_profile() {
       cachereuse) cachereuse=1 ;;
       ctx32k) ctx=32768 ;;
       ctx64k) ctx=65536 ;;
+      ctx128k) ctx=131072 ;;
       ub1024) ub=1024 ;;
       ub2048) ub=2048 ;;
       cram16) cram=16384 ;;
@@ -140,6 +165,7 @@ parse_profile() {
   [ -n "$cachereuse" ] && parts+=(cachereuse)
   [ "$ctx" = 32768 ] && parts+=(ctx32k)
   [ "$ctx" = 65536 ] && parts+=(ctx64k)
+  [ "$ctx" = 131072 ] && parts+=(ctx128k)
   [ -n "$ub" ] && parts+=("ub$ub")
   [ "$cram" = 16384 ] && parts+=(cram16)
   [ "$cram" = 0 ] && parts+=(cram0)
