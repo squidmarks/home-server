@@ -17,16 +17,20 @@
 //   SWITCH_CMD   the privileged script that starts/stops engines
 
 import http from "node:http";
+import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import { ADAPTERS, adapterFor, detect } from "./adapters/index.mjs";
 import { energyOf, powerConfig, readPlug } from "./power.mjs";
 import { MODELS, modelFor, residentFrom } from "./models.mjs";
 import { readGpu, readHost, queueFrom } from "./telemetry.mjs";
+import { isProfileName, switcherFor, readProfile } from "./profiles.mjs";
 
 const PORT = Number(process.env.PORT || 8091);
 const HOST = process.env.HOST || "0.0.0.0";
 const SWITCH_CMD = process.env.SWITCH_CMD || "";
+// profiles.sh and vllm-profiles.sh live beside switch-engine.sh.
+const SCRIPT_DIR = process.env.PROFILE_DIR || (SWITCH_CMD ? path.dirname(SWITCH_CMD) : "");
 const POWER = powerConfig();
 const IDLE_WATTS = process.env.POWER_IDLE_WATTS ? Number(process.env.POWER_IDLE_WATTS) : null;
 // One card holds one model, and loading another takes minutes. Without a floor
@@ -327,6 +331,40 @@ async function plugWatts() {
   return typeof s?.watts === "number" ? Math.round(s.watts) : null;
 }
 
+async function currentProfile() {
+  if (!SCRIPT_DIR) return null;
+  const cur = await currentBackend();
+  if (!cur) return null;
+  return readProfile(await switcherFor(cur.id, { dir: SCRIPT_DIR }));
+}
+
+/**
+ * Switching a profile reloads the model, so it costs what a model switch costs
+ * and takes the same guards: nothing in flight, nothing already switching.
+ * Unlike a model switch it does not honour MIN_RESIDENCY_MS -- that guard
+ * exists to stop two studios ping-ponging the GPU between different models, and
+ * a profile change is a deliberate act by whoever is running an experiment.
+ */
+function runProfileSwitch(script, name) {
+  const t0 = Date.now();
+  switching = { to: name, key: name, kind: "profile", startedAt: new Date().toISOString(), log: "" };
+  const p = spawn(script, ["set", name], {
+    shell: false,
+    env: {
+      PATH: process.env.PATH, HOME: process.env.HOME, USER: process.env.USER,
+      LOGNAME: process.env.LOGNAME, SHELL: process.env.SHELL, LANG: process.env.LANG,
+    },
+  });
+  const add = d => { switching.log = (switching.log + d.toString()).slice(-4000); };
+  p.stdout.on("data", add);
+  p.stderr.on("data", add);
+  p.on("close", code => {
+    switching = { ...switching, finishedAt: new Date().toISOString(), exitCode: code, ms: Date.now() - t0 };
+    residentSince = Date.now();
+    setTimeout(() => { if (switching?.finishedAt) switching = null; }, 60_000);
+  });
+}
+
 export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   try {
@@ -356,6 +394,10 @@ export const server = http.createServer(async (req, res) => {
         lastRequest,
         // Live telemetry for the page. Each is null when it cannot be read --
         // an absent sensor must not arrive as a zero, which reads as "idle".
+        // Which configuration the engine was started with, as opposed to which
+        // model it holds. Observed: see profiles.mjs on why a name file is not
+        // good enough.
+        profile: await currentProfile().catch(() => null),
         gpu: await readGpu().catch(() => null),
         host: await readHost(os.cpus().length).catch(() => null),
         queue: await engineQueue(cur).catch(() => null),
@@ -377,6 +419,36 @@ export const server = http.createServer(async (req, res) => {
     // The studio\'s model picker is configuration -- set rarely, deliberately,
     // by someone who is watching -- so that is when the cold start gets paid,
     // not four hours later when a user happens to send a message.
+    if (url.pathname === "/admin/profile" && req.method === "GET") {
+      const p = await currentProfile();
+      return p ? json(res, 200, p) : json(res, 503, { error: "no engine is up" });
+    }
+    if (url.pathname === "/admin/profile" && req.method === "POST") {
+      const chunks = []; for await (const c of req) chunks.push(c);
+      let want = null;
+      try { want = JSON.parse(Buffer.concat(chunks).toString()).profile; } catch {}
+      // Shape first, and never interpolated: this body is untrusted.
+      if (!isProfileName(want)) return json(res, 400, { error: "a profile is lower-case words joined by - (e.g. mtp3-cram16)" });
+      if (!SCRIPT_DIR) return json(res, 501, { error: "no profile scripts configured (SWITCH_CMD/PROFILE_DIR)" });
+      const cur = await currentBackend();
+      if (!cur) return json(res, 503, { error: "no engine is up" });
+      const sw = await switcherFor(cur.id, { dir: SCRIPT_DIR });
+      if (!sw?.switchable) {
+        return json(res, 409, { error: `the ${cur.id} engine that is running has no profiles (it is ${sw?.fixed ?? "a fixed configuration"})` });
+      }
+      if (switching && !switching.finishedAt) return json(res, 409, { error: `already switching to ${switching.to}` });
+      if (inFlight > 0) return json(res, 409, { error: `${inFlight} request(s) in flight; try again when idle` });
+      const now = await readProfile(sw);
+      if (now?.profile === want) return json(res, 200, { profile: want, alreadyRunning: true });
+      // The script is the authority on which names exist -- profiles.sh composes
+      // them from modifiers, so they cannot be enumerated here -- but reject an
+      // obvious miss early rather than after a reload.
+      if (now?.available?.length && !now.available.includes(want) && !/-/.test(want)) {
+        return json(res, 400, { error: `unknown profile: ${want}`, available: now.available });
+      }
+      runProfileSwitch(sw.script, want);
+      return json(res, 202, { switchingTo: want, engine: cur.id, estimateS: SWAP_HINT_S });
+    }
     if (url.pathname === "/admin/model" && req.method === "POST") {
       const chunks = []; for await (const c of req) chunks.push(c);
       let want = null;
