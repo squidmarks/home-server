@@ -424,9 +424,19 @@ export const server = http.createServer(async (req, res) => {
       if (body.data.some(m => !Number.isFinite(m?.max_model_len))) {
         ctx = typeof cur.contextWindow === "function" ? await cur.contextWindow().catch(() => null) : null;
       }
+      // How many images one PROMPT may carry -- and a prompt is the whole
+      // conversation, not the latest message, so a caller that sends history
+      // has to count images across all of it. The engine publishes this
+      // nowhere, so it is observed from how the engine was started. Omitted
+      // when unknown: absent means "decide for yourself", 0 means "refused".
+      const imgs = typeof cur.imageLimit === "function" ? await cur.imageLimit().catch(() => null) : null;
       return json(res, 200, {
         ...body,
-        data: body.data.map(m => (Number.isFinite(m?.max_model_len) || ctx == null ? m : { ...m, max_model_len: ctx })),
+        data: body.data.map(m => ({
+          ...m,
+          ...(Number.isFinite(m?.max_model_len) || ctx == null ? {} : { max_model_len: ctx }),
+          ...(imgs == null ? {} : { max_images_per_prompt: imgs }),
+        })),
       });
     }
 

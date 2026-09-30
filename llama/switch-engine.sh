@@ -24,12 +24,14 @@ PROFILE="${LLAMA_PROFILE:-mtp3-temp0}"
 VLLM_DIR="${VLLM_DIR:-$HOME/radiance-vllm-mxfp4}"
 VLLM_NAME="${VLLM_CONTAINER:-vllmmxfp4074}"
 
-# Both vLLM containers: the MXFP4 launcher names its own, serve-model.sh names
-# another, and only one of them can have the card. Stopping "the" vLLM by a
-# single name left the other holding ~17 GiB and the next start died deep in
-# engine init with a traceback that named nothing.
+# Every vLLM container: the MXFP4 launcher names its own, serve-model.sh names
+# another, serve-sly.sh a third, and only one of them can have the card.
+# Stopping "the" vLLM by a single name left another holding ~17 GiB and the next
+# start died deep in engine init with a traceback that named nothing. vllm-sly
+# also carries --restart unless-stopped, so `docker stop` is what removes it
+# from contention; leaving it out here would put two engines on one card.
 stop_vllm() {
-  for n in "$VLLM_NAME" vllm-generic; do
+  for n in "$VLLM_NAME" vllm-generic vllm-sly; do
     docker ps -q --filter "name=$n" | grep -q . && { echo ">>> stopping $n"; docker stop "$n" >/dev/null; }
   done
   # docker stop returns when the container is gone, not when the card is free.
@@ -57,13 +59,20 @@ case "$TARGET" in
     "$HERE/profiles.sh" set "$PROFILE" || exit 3
     ;;
   qwen-vllm)
-    # Not the bare `vllm` branch: that calls serve-tp1.sh with no profile
-    # environment, so it comes up in the launcher's DEFAULT single-GPU shape
-    # (MAXSEQS 3, MAXLEN 220000, CHUNK 2560) -- the long-context one. The shape
-    # the sweeps actually settled on is short-dflash (dflash, SPEC 7, MAXSEQS 8,
-    # MAXLEN 65536, CHUNK 4096). Loading a model by name and silently getting an
-    # untuned configuration is exactly the kind of unattributable result the
-    # profile machinery exists to prevent.
+    # sly-radiance, the primary engine since 2026-09-30: 262K context against
+    # the radiance tree's 65K, the same ~72 tok/s decode, a better mean score,
+    # a pullable image, and image input. This branch used to run
+    # `vllm-profiles.sh set short-dflash`, which meant the shim loading this
+    # model id by name would tear sly down and bring up the superseded 65K
+    # build -- silently losing three quarters of the context window and vision.
+    stop_llama
+    stop_vllm
+    exec "$HERE/serve-sly.sh"
+    ;;
+  qwen-vllm-radiance)
+    # The superseded radiance tree, kept reachable to reproduce results recorded
+    # against it. short-dflash is the shape the sweeps settled on; the bare
+    # `vllm` branch below comes up in the launcher's untuned default instead.
     stop_llama
     stop_vllm
     exec "$HERE/vllm-profiles.sh" set short-dflash
@@ -85,5 +94,5 @@ case "$TARGET" in
     done
     echo "!! vLLM did not become healthy within 20 minutes"; exit 4
     ;;
-  *) echo "usage: $0 qwen-vllm|gemma-vllm|qwen-llama (or llama|vllm)" >&2; exit 2 ;;
+  *) echo "usage: $0 qwen-vllm|qwen-vllm-radiance|gemma-vllm|qwen-llama (or llama|vllm)" >&2; exit 2 ;;
 esac

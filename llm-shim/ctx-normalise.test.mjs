@@ -27,3 +27,22 @@ test("the first place that has a real number wins", () => {
     262144,
   );
 });
+
+import { imageLimitFromArgs } from "./adapters/index.mjs";
+
+test("the per-prompt image limit is read from how the engine was started", () => {
+  // vLLM publishes this on no endpoint, so argv is the only honest source.
+  assert.equal(imageLimitFromArgs(["--limit-mm-per-prompt.image", "1"]), 1);
+  assert.equal(imageLimitFromArgs(["--limit-mm-per-prompt.image=4"]), 4);
+  assert.equal(imageLimitFromArgs(['--limit-mm-per-prompt', '{"image": 2, "video": 0}']), 2);
+  // Zero is a real answer: the engine refuses images.
+  assert.equal(imageLimitFromArgs(["--limit-mm-per-prompt.image", "0"]), 0);
+});
+
+test("unknown is null, never zero", () => {
+  // 0 would tell a caller to stop sending attachments. "I could not tell" must
+  // leave that decision with them.
+  assert.equal(imageLimitFromArgs([]), null);
+  assert.equal(imageLimitFromArgs(["--max-model-len", "262144"]), null);
+  assert.equal(imageLimitFromArgs(null), null);
+});

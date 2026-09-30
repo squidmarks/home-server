@@ -36,6 +36,42 @@ export function ctxFromProps(j) {
   return null;
 }
 
+/**
+ * Pure: the per-prompt image limit out of an engine's argv.
+ *
+ * vLLM publishes this nowhere -- not /v1/models, not /metrics, and there is no
+ * config endpoint -- so the only honest source is the argv the engine was
+ * started with. Accepts both spellings the flag has taken.
+ *
+ * null means "could not tell", which is NOT the same as 0. Zero is a real
+ * answer meaning images are refused; null must leave the caller free to decide
+ * rather than have it silently stop sending attachments.
+ */
+export function imageLimitFromArgs(argv) {
+  const s = Array.isArray(argv) ? argv.join(" ") : String(argv ?? "");
+  const m = /--limit-mm-per-prompt[.=]image[= ]+(\d+)/.exec(s)
+    ?? /--limit-mm-per-prompt[= ]+(\{[^}]*"image"\s*:\s*(\d+)[^}]*\})/.exec(s);
+  if (!m) return null;
+  const n = Number(m[2] ?? m[1]);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** The argv of the first running container whose name matches, or null. */
+async function containerArgs(pattern) {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const run = promisify(execFile);
+  try {
+    const { stdout } = await run("docker", ["ps", "--format", "{{.Names}}"], { timeout: 3000 });
+    const name = stdout.split("\n").map(x => x.trim()).find(x => x && pattern.test(x));
+    if (!name) return null;
+    const { stdout: raw } = await run("docker", ["inspect", name, "--format", "{{json .Args}}"], { timeout: 3000 });
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export const llama = {
   name: "llama.cpp",
   id: "llama",
@@ -60,6 +96,20 @@ export const llama = {
   fromBody(body) {
     return fromLlamaTimings(body?.timings);
   },
+  /**
+   * llama.cpp reads images only with an --mmproj companion file loaded. No
+   * profile in profiles.sh loads one, so this is 0 unless one appears -- read
+   * from the unit rather than assumed, so it follows if that changes.
+   */
+  async imageLimit() {
+    const { readFile } = await import("node:fs/promises");
+    try {
+      const unit = await readFile("/etc/systemd/system/llama-server.service", "utf8");
+      return /--mmproj\b/.test(unit) ? 1 : 0;
+    } catch {
+      return null;
+    }
+  },
   /** The window the server was actually started with, not what a config claims. */
   async contextWindow() {
     try {
@@ -74,6 +124,14 @@ export const llama = {
 export const vllm = {
   name: "vLLM (radiance MXFP4)",
   id: "vllm",
+  /**
+   * Observed from the running container rather than declared here: the value
+   * lives in serve-sly.sh, and a copy kept in this file would be one more thing
+   * to go stale the next time the engine config changes.
+   */
+  async imageLimit() {
+    return imageLimitFromArgs(await containerArgs(/vllm/i));
+  },
   baseUrl: process.env.VLLM_BASE_URL || "http://172.18.0.1:8080",
   async health() {
     try {
