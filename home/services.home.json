@@ -9,21 +9,21 @@
           "description": "Agents and automations over Home Assistant",
           "port": 3743,
           "check": "http://127.0.0.1:3702/",
-          "sub": "studio"
+          "sub": "home.studio"
         },
         {
           "name": "Witness Studio",
           "description": "Household agents, missions and transactions (Google login)",
           "port": 3443,
           "check": "http://127.0.0.1:4180/ping",
-          "sub": "witness"
+          "sub": "witness.studio"
         },
         {
           "name": "Investment Studio",
           "description": "Build and run investment agents on a paper account",
           "port": 3543,
           "check": "http://127.0.0.1:3704/",
-          "sub": "invest"
+          "sub": "invest.studio"
         }
       ]
     },
@@ -94,14 +94,14 @@
           "port": 3001,
           "path": "/health",
           "check": "http://127.0.0.1:3001/health",
-          "sub": "api"
+          "sub": "api.studio"
         },
         {
           "name": "Witness OAuth callback",
           "description": "Google connection callback for Witness",
           "port": 8443,
           "check": "http://127.0.0.1:8085/",
-          "sub": "connect"
+          "sub": "connect.studio"
         },
         {
           "name": "MCP server",

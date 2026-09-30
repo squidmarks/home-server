@@ -1,5 +1,6 @@
-# Name-based routing for everything on the tailnet. One wildcard certificate
-# (DNS challenge through Cloudflare) covers the domain and every subdomain.
+# Name-based routing for everything on the tailnet. Wildcard certificates
+# (DNS challenge through Cloudflare): one for the domain and its tools
+# (ha., llm., grafana., ...), one for the studios under studio.<domain>.
 {
 	# Tailnet only: never listen on the LAN or anywhere else.
 	default_bind {$TAILNET_IP}
@@ -14,30 +15,6 @@
 	@home host {$DOMAIN}
 	handle @home {
 		reverse_proxy 127.0.0.1:3090
-	}
-
-	# --- Agent studios (one shared agent-service) ------------------------
-	@api host api.{$DOMAIN}
-	handle @api {
-		reverse_proxy 127.0.0.1:3001
-	}
-	@studio host studio.{$DOMAIN}
-	handle @studio {
-		reverse_proxy 127.0.0.1:3702
-	}
-	@witness host witness.{$DOMAIN}
-	handle @witness {
-		# oauth2-proxy (Google login) in front of the Witness web app.
-		reverse_proxy 127.0.0.1:4180
-	}
-	@connect host connect.{$DOMAIN}
-	handle @connect {
-		# Witness's Gmail/Drive connection callback.
-		reverse_proxy 127.0.0.1:8085
-	}
-	@invest host invest.{$DOMAIN}
-	handle @invest {
-		reverse_proxy 127.0.0.1:3704
 	}
 
 	# --- Home Assistant (a VM on this box, reached over the tailnet) ------
@@ -77,5 +54,41 @@
 
 	handle {
 		respond "Unknown service" 404
+	}
+}
+
+# --- Agent studios: <name>.studio.<domain> (one shared agent-service) -------
+# Their own level, so a shared login cookie can cover .studio.<domain> without
+# reaching the tools above.
+*.studio.{$DOMAIN} {
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+	}
+
+	@api host api.studio.{$DOMAIN}
+	handle @api {
+		reverse_proxy 127.0.0.1:3001
+	}
+	@home host home.studio.{$DOMAIN}
+	handle @home {
+		reverse_proxy 127.0.0.1:3702
+	}
+	@witness host witness.studio.{$DOMAIN}
+	handle @witness {
+		# oauth2-proxy (Google login) in front of the Witness web app.
+		reverse_proxy 127.0.0.1:4180
+	}
+	@connect host connect.studio.{$DOMAIN}
+	handle @connect {
+		# Witness's Gmail/Drive connection callback.
+		reverse_proxy 127.0.0.1:8085
+	}
+	@invest host invest.studio.{$DOMAIN}
+	handle @invest {
+		reverse_proxy 127.0.0.1:3704
+	}
+
+	handle {
+		respond "Unknown studio" 404
 	}
 }

@@ -8,12 +8,13 @@
 # missions, life state, ...) in the `witness` DB.
 # Secrets: ~/agent-studio/studios.env (setup-home.sh, plus each studio's keys).
 #
-# Studios (each at its own name under STUDIOS_DOMAIN, served by caddy/):
-#   Home Studio        home-agent-studio       studio.<domain>
-#   Witness            witness-agent-studio    witness.<domain> (Google login via oauth2-proxy)
-#                                              connect.<domain> (Gmail/Drive OAuth callback)
-#   Investment Studio  benchmark-agent-studio  invest.<domain>
-#   shared agent-service                       api.<domain> (also the panels origin)
+# Studios, each at <name>.<STUDIOS_DOMAIN> (e.g. home.studio.example.com),
+# served by caddy/:
+#   Home Studio        home-agent-studio       home.
+#   Witness            witness-agent-studio    witness. (Google login via oauth2-proxy)
+#                                              connect. (Gmail/Drive OAuth callback)
+#   Investment Studio  benchmark-agent-studio  invest.
+#   shared agent-service                       api. (also the panels origin)
 #
 # Ports, all bound to 127.0.0.1 and reached through Caddy: agent-service 3001,
 # Home Studio 3702, Witness login 4180, Witness OAuth 8085, Investment 3704,
@@ -60,15 +61,15 @@ services:
       MONGO_URI: mongodb://agent_studio:${STUDIOS_DB_PASSWORD}@mongo:27017/?authSource=agent_studio
       MONGO_DB: agent_studio
       # Every studio's web origin (comma-separated for CORS, space-separated for frames).
-      CORS_ORIGINS: https://studio.${STUDIOS_DOMAIN},https://witness.${STUDIOS_DOMAIN},https://invest.${STUDIOS_DOMAIN}
-      PANEL_FRAME_ANCESTORS: https://studio.${STUDIOS_DOMAIN} https://witness.${STUDIOS_DOMAIN} https://invest.${STUDIOS_DOMAIN}
+      CORS_ORIGINS: https://home.${STUDIOS_DOMAIN},https://witness.${STUDIOS_DOMAIN},https://invest.${STUDIOS_DOMAIN}
+      PANEL_FRAME_ANCESTORS: https://home.${STUDIOS_DOMAIN} https://witness.${STUDIOS_DOMAIN} https://invest.${STUDIOS_DOMAIN}
       PANELS_PUBLIC_URL: https://api.${STUDIOS_DOMAIN}
       PANEL_TOKEN_SECRET: ${PANEL_TOKEN_SECRET}
       SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY}
       MCP_INTERNAL_API_KEY: ${MCP_INTERNAL_API_KEY}
       # The default for anything without a deployment of its own; each studio's
       # real URL comes from its deployment.json.
-      STUDIO_PUBLIC_URL: https://studio.${STUDIOS_DOMAIN}
+      STUDIO_PUBLIC_URL: https://home.${STUDIOS_DOMAIN}
 
       # --- Home Studio engine ---------------------------------------------
       HOME_REQUIRE_AUTH: "false"
@@ -80,7 +81,7 @@ services:
       HA_READONLY_ENTITIES: ${HA_READONLY_ENTITIES:-}
       # Where Home Assistant sends webhook calls. The studio's own name works:
       # HA resolves it through public DNS to this box's tailnet IP.
-      HA_WEBHOOK_BASE_URL: ${HA_WEBHOOK_BASE_URL:-https://studio.${STUDIOS_DOMAIN}}
+      HA_WEBHOOK_BASE_URL: ${HA_WEBHOOK_BASE_URL:-https://home.${STUDIOS_DOMAIN}}
 
       # --- Witness engine -------------------------------------------------
       WITNESS_REQUIRE_AUTH: "false"
@@ -141,7 +142,7 @@ services:
       NODE_ENV: production
       AGENT_SERVICE_URL: http://agent-service:3001
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      NEXTAUTH_URL: https://studio.${STUDIOS_DOMAIN}
+      NEXTAUTH_URL: https://home.${STUDIOS_DOMAIN}
     depends_on:
       - agent-service
 
