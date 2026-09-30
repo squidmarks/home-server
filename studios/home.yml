@@ -4,13 +4,27 @@
 # reads each studio's public URL from its rendered deployment.json
 # (studios/render-home-deployments.sh -> ~/agent-studio/home-deployments).
 # One platform database (agent_studio in the shared Mongo), partitioned by each
-# studio's applicationId. Secrets: ~/agent-studio/studios.env (setup-home.sh).
+# studio's applicationId; Witness also keeps its own collections (transactions,
+# missions, life state, ...) in the `witness` DB.
+# Secrets: ~/agent-studio/studios.env (setup-home.sh, plus each studio's keys).
 #
-# Studios:  Home Studio (home-agent-studio)
+# Studios:
+#   Home Studio        home-agent-studio       https :3743
+#   Witness            witness-agent-studio    https :3443 (Google login via oauth2-proxy)
+#   Investment Studio  benchmark-agent-studio  https :3543
 #
-# Ports (all bound to 127.0.0.1, published to the tailnet with `tailscale serve`):
-#   agent-service  3001 -> https :3001 (also the panels origin)
-#   Home Studio    3702 -> https :3743; http <tailnet IP>:8743 for Home Assistant webhooks
+# Ports (all bound to 127.0.0.1 and published to the tailnet by tailscale/serve.sh,
+# except Home Assistant's webhook port):
+#   agent-service      3001 -> :3001 (also the panels origin)
+#   Home Studio web    3702 -> :3743; and <tailnet IP>:8743 for Home Assistant webhooks
+#   Witness login      4180 -> :3443 (oauth2-proxy in front of the Witness web app)
+#   Witness OAuth      8085 -> :8443 (Gmail/Drive connection callback)
+#   Investment web     3704 -> :3543
+#   MCP server         3002 (reached publicly through the Cloudflare tunnel)
+#
+# Local models come from the inference box's shim (LOCAL_LLM_BASE_URL in
+# studios.env, http://<inference box>:8091/v1). A 503 with retry-after from it
+# means a model swap is in progress, not a failure.
 #
 # Run on the box after studios/setup-home.sh and studios/render-home-deployments.sh:
 #   cd ~/agent-studio && docker compose -f ~/infra/studios/home.yml --env-file studios.env up -d --build
@@ -26,7 +40,7 @@ services:
         BUILD_VERSION: ${BUILD_VERSION:-dev}
     image: studios-agent-service:latest
     restart: unless-stopped
-    mem_limit: 3g
+    mem_limit: 4g
     ports:
       - "127.0.0.1:3001:3001"
     networks: [default, platform]
@@ -34,26 +48,30 @@ services:
       NODE_ENV: production
       AGENT_SERVICE_PORT: "3001"
       LOG_LEVEL: info
-      PROFILES: "@agent-studio/home-engine"
+      PROFILES: "@agent-studio/home-engine,@agent-studio/witness-engine,@agent-studio/benchmark-engine"
       DEPLOYMENTS_DIR: /deployments
       DEFAULT_MODEL: ${DEFAULT_MODEL:-claude-sonnet-5}
       ROUTER_MODEL: ${DEFAULT_MODEL:-claude-sonnet-5}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      # The inference box's llama-server, once it's reachable from here.
       LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-}
+      # Qwen3.8's template defaults to reasoning_effort "xhigh" (about 2x wall
+      # clock, and sometimes a blank reply at the token cap). Pin medium; a
+      # request's own kwargs still win. The real levels are low, medium, xhigh.
+      LOCAL_LLM_CHAT_TEMPLATE_KWARGS: '{"reasoning_effort":"medium"}'
       MONGO_URI: mongodb://agent_studio:${STUDIOS_DB_PASSWORD}@mongo:27017/?authSource=agent_studio
       MONGO_DB: agent_studio
       # Every studio's web origin (comma-separated for CORS, space-separated for frames).
-      CORS_ORIGINS: https://${STUDIOS_HOST}:3743
-      PANEL_FRAME_ANCESTORS: https://${STUDIOS_HOST}:3743
+      CORS_ORIGINS: https://${STUDIOS_HOST}:3743,https://${STUDIOS_HOST}:3443,https://${STUDIOS_HOST}:3543
+      PANEL_FRAME_ANCESTORS: https://${STUDIOS_HOST}:3743 https://${STUDIOS_HOST}:3443 https://${STUDIOS_HOST}:3543
       PANELS_PUBLIC_URL: https://${STUDIOS_HOST}:3001
       PANEL_TOKEN_SECRET: ${PANEL_TOKEN_SECRET}
       SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY}
       MCP_INTERNAL_API_KEY: ${MCP_INTERNAL_API_KEY}
-      # No email or messaging accounts on this box yet.
-      DISABLED_TOOLS: "notify,notify-list-recipients,telegram-*"
+      # The default for anything without a deployment of its own; each studio's
+      # real URL comes from its deployment.json.
+      STUDIO_PUBLIC_URL: https://${STUDIOS_HOST}:3743
 
       # --- Home Studio engine ---------------------------------------------
       HOME_REQUIRE_AUTH: "false"
@@ -64,10 +82,43 @@ services:
       HA_TOKEN: ${HA_TOKEN}
       HA_READONLY_ENTITIES: ${HA_READONLY_ENTITIES:-}
       # HA can't resolve tailnet names, so its webhook calls use this box's
-      # tailnet IP over plain HTTP (a tailnet-only port; see tailscale/serve.sh).
+      # tailnet IP over plain HTTP (see the Home Studio web ports below).
       HA_WEBHOOK_BASE_URL: http://${STUDIOS_TAILNET_IP}:8743
+
+      # --- Witness engine -------------------------------------------------
+      WITNESS_REQUIRE_AUTH: "false"
+      WITNESS_MONGO_URI: mongodb://witness:${WITNESS_DB_PASSWORD}@mongo:27017/witness?authSource=witness
+      WITNESS_TOKEN_ENCRYPTION_KEY: ${WITNESS_TOKEN_ENCRYPTION_KEY}
+      WITNESS_OAUTH_EDGE_URL: https://${STUDIOS_HOST}:8443
+      WITNESS_ADMIN_EMAILS: ${WITNESS_ADMIN_EMAILS}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+      PUSHOVER_API_TOKEN: ${PUSHOVER_API_TOKEN}
+      POSTMARK_API_KEY: ${POSTMARK_API_KEY}
+      POSTMARK_FROM_EMAIL: ${POSTMARK_FROM_EMAIL}
+      POSTMARK_FROM_NAME: ${POSTMARK_FROM_NAME}
+
+      # --- Investment Studio engine (benchmark-engine) --------------------
+      BENCHMARK_REQUIRE_AUTH: "false"
+      BENCHMARK_ADMIN_EMAILS: ${BENCHMARK_ADMIN_EMAILS:-}
+      # Alpaca PAPER only. The tools refuse every other host, whatever these say.
+      ALPACA_API_KEY: ${ALPACA_API_KEY}
+      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY}
+      ALPACA_MAX_ORDER_NOTIONAL_USD: ${ALPACA_MAX_ORDER_NOTIONAL_USD:-500}
+      ALPACA_MAX_ORDERS_PER_DAY: ${ALPACA_MAX_ORDERS_PER_DAY:-20}
+      BENCHMARK_CONTEXT_DIR: /guidance
+      ALPACA_KILL_SWITCH: /state/KILL
+      ALPACA_FAULTS_FILE: /state/faults.json
+      # Internet research (Tavily), seeded as an MCP server for the Investment
+      # Studio; the key is read from TAVILY_API_KEY, never written here.
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      MCP_SERVERS: '[{"applicationId":"benchmark-agent-studio","name":"tavily","endpoint":"https://mcp.tavily.com/mcp/","authType":"bearer","authValueEnvVar":"TAVILY_API_KEY"}]'
     volumes:
       - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/home-deployments:/deployments:ro
+      # Investment Studio: its router guidance (read from the checkout, so tuning
+      # is an edit plus a restart), and its kill switch / scripted faults.
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/profiles/benchmark/engine/src/context:/guidance:ro
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/benchmark-state:/state
 
   home-studio-web:
     build:
@@ -96,6 +147,130 @@ services:
       NEXTAUTH_URL: https://${STUDIOS_HOST}:3743
     depends_on:
       - agent-service
+
+  witness-web:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: apps/studio-web/Dockerfile
+      args:
+        APP_PROFILE: witness
+        NEXT_PUBLIC_AGENT_SERVICE_URL: https://${STUDIOS_HOST}:3001
+        NEXT_PUBLIC_AUTH_ENABLED: "false"
+        NEXT_PUBLIC_APPLICATION_ID: witness-agent-studio
+        NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
+    image: witness-web:latest
+    restart: unless-stopped
+    mem_limit: 1g
+    # Only reachable through oauth2-proxy (no published port). The alias keeps
+    # the name the Witness stack has always used for its web app.
+    networks:
+      default:
+        aliases: [studio-web]
+    environment:
+      NODE_ENV: production
+      AGENT_SERVICE_URL: http://agent-service:3001
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: https://${STUDIOS_HOST}:3443
+    depends_on:
+      - agent-service
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    restart: unless-stopped
+    mem_limit: 100m
+    ports:
+      - "127.0.0.1:4180:4180"
+    environment:
+      OAUTH2_PROXY_PROVIDER: google
+      OAUTH2_PROXY_CLIENT_ID: ${WITNESS_LOGIN_GOOGLE_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${WITNESS_LOGIN_GOOGLE_CLIENT_SECRET}
+      # Must be an authorised redirect URI on the Google login client (Console).
+      OAUTH2_PROXY_REDIRECT_URL: https://${STUDIOS_HOST}:3443/oauth2/callback
+      OAUTH2_PROXY_UPSTREAMS: http://witness-web:3000
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_EMAIL_DOMAIN: "*"
+      OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: /etc/oauth2-proxy/emails.txt
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+    volumes:
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/oauth2-proxy-emails.txt:/etc/oauth2-proxy/emails.txt:ro
+    depends_on:
+      - witness-web
+
+  witness-oauth-callback:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: profiles/witness/oauth-callback/Dockerfile
+    image: witness-oauth-callback:latest
+    restart: unless-stopped
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:8085:8080"
+    networks: [default, platform]
+    environment:
+      PORT: "8080"
+      WITNESS_MONGO_URI: mongodb://witness:${WITNESS_DB_PASSWORD}@mongo:27017/witness?authSource=witness
+      WITNESS_TOKEN_ENCRYPTION_KEY: ${WITNESS_TOKEN_ENCRYPTION_KEY}
+      # Must be an authorised redirect URI (+ /oauth/google/callback) on the
+      # Google connection client (Console).
+      WITNESS_OAUTH_EDGE_URL: https://${STUDIOS_HOST}:8443
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+
+  investment-web:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: apps/studio-web/Dockerfile
+      args:
+        APP_PROFILE: benchmark
+        NEXT_PUBLIC_AGENT_SERVICE_URL: https://${STUDIOS_HOST}:3001
+        NEXT_PUBLIC_AUTH_ENABLED: "false"
+        NEXT_PUBLIC_APPLICATION_ID: benchmark-agent-studio
+        NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
+    image: investment-web:latest
+    restart: unless-stopped
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:3704:3000"
+    environment:
+      NODE_ENV: production
+      AGENT_SERVICE_URL: http://agent-service:3001
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: https://${STUDIOS_HOST}:3543
+    depends_on:
+      - agent-service
+
+  # The studios' MCP server surface (ADR-0005), reached from outside through
+  # the Cloudflare tunnel.
+  mcp-server:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: apps/mcp-server/Dockerfile
+    image: studios-mcp-server:latest
+    restart: unless-stopped
+    mem_limit: 512m
+    ports:
+      - "127.0.0.1:3002:3002"
+    environment:
+      NODE_ENV: production
+      MCP_SERVER_PORT: "3002"
+      LOG_LEVEL: info
+      AGENT_SERVICE_INTERNAL_URL: http://agent-service:3001
+      MCP_INTERNAL_API_KEY: ${MCP_INTERNAL_API_KEY}
+    depends_on:
+      - agent-service
+
+  # Only ONE copy of this may run (the tunnel token is the identity): stop it
+  # wherever it ran before starting it here.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    mem_limit: 128m
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - mcp-server
 
 networks:
   default: {}

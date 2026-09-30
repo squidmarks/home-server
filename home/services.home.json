@@ -4,39 +4,100 @@
     {
       "name": "Agent Studio",
       "services": [
-        { "name": "Home Studio", "description": "Agents and automations over Home Assistant", "port": 3743, "check": "http://127.0.0.1:3702/" },
-        { "name": "Witness Studio", "description": "Household agents, missions and transactions", "host": "server", "port": 3443, "check": "https://server.{tailnet}:3443/ping" },
-        { "name": "Investment Studio", "description": "Build and run investment agents on a paper account", "host": "server", "port": 3543, "check": "https://server.{tailnet}:3543/" }
+        {
+          "name": "Home Studio",
+          "description": "Agents and automations over Home Assistant",
+          "port": 3743,
+          "check": "http://127.0.0.1:3702/"
+        },
+        {
+          "name": "Witness Studio",
+          "description": "Household agents, missions and transactions (Google login)",
+          "port": 3443,
+          "check": "http://127.0.0.1:4180/ping"
+        },
+        {
+          "name": "Investment Studio",
+          "description": "Build and run investment agents on a paper account",
+          "port": 3543,
+          "check": "http://127.0.0.1:3704/"
+        }
       ]
     },
     {
       "name": "Home Assistant",
       "services": [
-        { "name": "Home Assistant", "description": "Devices, automations and dashboards (VM on this box)", "host": "homeassistant", "scheme": "http", "port": null, "check": "http://homeassistant.{tailnet}/" }
+        {
+          "name": "Home Assistant",
+          "description": "Devices, automations and dashboards (VM on this box)",
+          "host": "homeassistant",
+          "scheme": "http",
+          "port": null,
+          "check": "http://homeassistant.{tailnet}/"
+        }
       ]
     },
     {
       "name": "Inference",
       "services": [
-        { "name": "Local inference", "description": "The inference box: engine health, resident model, model and engine switching, power", "host": "server", "port": null, "path": "/llm/admin/", "check": "http://server.{tailnet}:8091/health" },
-        { "name": "Model Bench", "description": "Cases, runs, judging and results for model comparison", "host": "server", "port": 3400, "check": "https://server.{tailnet}:3400/api/models" }
+        {
+          "name": "Local inference",
+          "description": "The inference box: engine health, resident model, model and engine switching, power",
+          "host": "server",
+          "port": null,
+          "path": "/llm/admin/",
+          "check": "http://server.{tailnet}:8091/health"
+        },
+        {
+          "name": "Model Bench",
+          "description": "Cases, runs, judging and results for model comparison",
+          "host": "server",
+          "port": 3400,
+          "check": "https://server.{tailnet}:3400/api/models"
+        }
       ]
     },
     {
       "name": "Monitoring & data",
       "services": [
-        { "name": "Grafana", "description": "Server, inference, MongoDB and studio dashboards", "host": "server", "port": 3300, "check": "https://server.{tailnet}:3300/api/health" },
-        { "name": "Mongoku", "description": "Read-only MongoDB browser", "host": "server", "port": 3600, "check": "https://server.{tailnet}:3600/" }
+        {
+          "name": "Grafana",
+          "description": "Server, inference, MongoDB and studio dashboards",
+          "host": "server",
+          "port": 3300,
+          "check": "https://server.{tailnet}:3300/api/health"
+        },
+        {
+          "name": "Mongoku",
+          "description": "Read-only MongoDB browser",
+          "host": "server",
+          "port": 3600,
+          "check": "https://server.{tailnet}:3600/"
+        }
       ]
     },
     {
       "name": "Developer",
       "collapsed": true,
       "services": [
-        { "name": "Studios agent-service", "description": "Shared backend for the studios on this box", "port": 3001, "path": "/health", "check": "http://127.0.0.1:3001/health" },
-        { "name": "Witness agent-service", "description": "Backend API and metrics for the Witness studio", "host": "server", "port": 3001, "path": "/health", "check": "https://server.{tailnet}:3001/health" },
-        { "name": "Investment agent-service", "description": "Backend API for the Investment Studio", "host": "server", "port": 3501, "path": "/health", "check": "https://server.{tailnet}:3501/health" },
-        { "name": "Witness OAuth callback", "description": "Google connection callback for Witness", "host": "server", "port": 8443, "check": "https://server.{tailnet}:8443/" }
+        {
+          "name": "Studios agent-service",
+          "description": "Shared backend for every studio on this box",
+          "port": 3001,
+          "path": "/health",
+          "check": "http://127.0.0.1:3001/health"
+        },
+        {
+          "name": "Witness OAuth callback",
+          "description": "Google connection callback for Witness",
+          "port": 8443,
+          "check": "http://127.0.0.1:8085/"
+        },
+        {
+          "name": "MCP server",
+          "description": "The studios' MCP surface (public via the Cloudflare tunnel)",
+          "check": "http://127.0.0.1:3002/health"
+        }
       ]
     }
   ]

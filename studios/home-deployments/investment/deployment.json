@@ -1,0 +1,6 @@
+{
+  "name": "investment",
+  "engine": "benchmark-agent-studio",
+  "applicationId": "benchmark-agent-studio",
+  "studioPublicUrl": "https://{fqdn}:3543"
+}

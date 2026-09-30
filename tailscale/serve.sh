@@ -18,19 +18,18 @@ case "$(hostname)" in
     serve 443  3090 "home page (links to every service on the tailnet)"
     serve 3001 3001 "shared agent-service, all studios (also the panels origin)"
     serve 3743 3702 "Home Studio"
+    serve 3443 4180 "Witness studio (behind oauth2-proxy)"
+    serve 8443 8085 "Witness Google OAuth callback"
+    serve 3543 3704 "Investment Studio"
     # Home Assistant's webhook port is NOT served here: tailscale serve routes by
     # hostname and HA can only call the IP. studios/home.yml publishes it
     # directly on the tailnet IP instead.
     ;;
   server)
-    serve 3001 3001 "Witness agent-service"
+    # The studios moved to home; the bench and monitoring stay here until they do.
     serve 3300 3000 "Grafana"
     serve 3400 3400 "Model Bench"
-    serve 3443 4180 "Witness studio (behind oauth2-proxy)"
-    serve 3501 3501 "Investment Studio agent-service (also the panels origin)"
-    serve 3543 3502 "Investment Studio"
     serve 3600 3110 "Mongoku (read-only MongoDB browser)"
-    serve 8443 8085 "Witness Google OAuth callback"
     path /llm 8091 "local inference shim (admin page at /llm/admin/)"
     ;;
   *) echo "no tailscale serve mapping for host $(hostname)" >&2; exit 1 ;;

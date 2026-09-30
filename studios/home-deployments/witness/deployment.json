@@ -1,0 +1,6 @@
+{
+  "name": "witness",
+  "engine": "witness-agent-studio",
+  "applicationId": "witness-agent-studio",
+  "studioPublicUrl": "https://{fqdn}:3443"
+}
