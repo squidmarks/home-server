@@ -138,11 +138,6 @@ services:
     mem_limit: 1g
     ports:
       - "127.0.0.1:3702:3000"
-      # Home Assistant's webhook calls, straight on this box's tailnet IP (so only
-      # the tailnet can reach it). Not via `tailscale serve`: that routes by
-      # hostname, and HA can only use the IP. Needs net.ipv4.ip_nonlocal_bind=1
-      # so the port binds at boot even before tailscale has the address.
-      - "${STUDIOS_TAILNET_IP}:8743:3000"
     environment:
       NODE_ENV: production
       AGENT_SERVICE_URL: http://agent-service:3001

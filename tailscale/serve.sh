@@ -15,15 +15,8 @@ path() { sudo tailscale serve --bg --set-path="$1" "http://127.0.0.1:$2" >/dev/n
 
 case "$(hostname)" in
   home)
-    # :443 belongs to Caddy (caddy/), which serves every name under the domain.
-    serve 3001 3001 "shared agent-service, all studios (also the panels origin)"
-    serve 3743 3702 "Home Studio"
-    serve 3443 4180 "Witness studio (behind oauth2-proxy)"
-    serve 8443 8085 "Witness Google OAuth callback"
-    serve 3543 3704 "Investment Studio"
-    # Home Assistant's webhook port is NOT served here: tailscale serve routes by
-    # hostname and HA can only call the IP. studios/home.yml publishes it
-    # directly on the tailnet IP instead.
+    # Nothing: Caddy (caddy/) serves every name under the domain on this box's
+    # tailnet IP, so no service here needs a tailscale serve port.
     ;;
   server)
     # The studios moved to home; the bench and monitoring stay here until they do.

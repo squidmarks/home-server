@@ -1,7 +1,9 @@
 # The front door on `home`: one wildcard certificate for the domain, and a
 # name per service instead of a port. It binds ONLY to this box's tailnet IP,
 # and the domain's DNS records point at that IP, so every name works from any
-# tailnet device and from nowhere else.
+# tailnet device and from nowhere else. Binding to that IP at boot, before
+# tailscale has brought it up, needs net.ipv4.ip_nonlocal_bind=1
+# (/etc/sysctl.d/90-nonlocal-bind.conf on the box).
 #
 # Settings live in a gitignored caddy/.env (compose reads it automatically):
 #   DOMAIN=            the domain (e.g. example.com)
