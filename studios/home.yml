@@ -129,6 +129,9 @@ services:
         NEXT_PUBLIC_AGENT_SERVICE_URL: https://api.${STUDIOS_DOMAIN}
         NEXT_PUBLIC_AUTH_ENABLED: "false"
         NEXT_PUBLIC_APPLICATION_ID: home-agent-studio
+        # The public MCP address shown for this studio's MCP servers (the tunnel's
+        # hostname), e.g. https://mcp.example.com -> <it>/mcp/servers/<id>.
+        NEXT_PUBLIC_MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
         NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
     image: home-studio-web:latest
     restart: unless-stopped
@@ -157,6 +160,9 @@ services:
         NEXT_PUBLIC_AGENT_SERVICE_URL: https://api.${STUDIOS_DOMAIN}
         NEXT_PUBLIC_AUTH_ENABLED: "false"
         NEXT_PUBLIC_APPLICATION_ID: witness-agent-studio
+        # The public MCP address shown for this studio's MCP servers (the tunnel's
+        # hostname), e.g. https://mcp.example.com -> <it>/mcp/servers/<id>.
+        NEXT_PUBLIC_MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
         NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
     image: witness-web:latest
     restart: unless-stopped
@@ -235,6 +241,9 @@ services:
         NEXT_PUBLIC_AGENT_SERVICE_URL: https://api.${STUDIOS_DOMAIN}
         NEXT_PUBLIC_AUTH_ENABLED: "false"
         NEXT_PUBLIC_APPLICATION_ID: benchmark-agent-studio
+        # The public MCP address shown for this studio's MCP servers (the tunnel's
+        # hostname), e.g. https://mcp.example.com -> <it>/mcp/servers/<id>.
+        NEXT_PUBLIC_MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
         NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
     image: investment-web:latest
     restart: unless-stopped
