@@ -1,8 +1,10 @@
 // Renders services from /api/services. Port links use the tailnet FQDN the API
-// on, so they keep working if the machine's name changes. Text is inserted as text.
+// reports, and links to another machine use its short name plus the tailnet
+// suffix, so none of them depend on the address this page was opened at. Text is
+// inserted as text.
 const root = document.getElementById("groups");
 // The tailnet FQDN the API reports; port links need it (see card()).
-const config = { fqdn: "" };
+const config = { fqdn: "", tailnet: "" };
 const el = (tag, cls, ...kids) => {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -10,14 +12,28 @@ const el = (tag, cls, ...kids) => {
   return n;
 };
 
+// A service on another machine: its short name plus this tailnet's suffix. The
+// scheme's default port is left out of the link.
+function remoteHref(s) {
+  const scheme = s.scheme || "https";
+  const port = s.port === null || s.port === (scheme === "http" ? 80 : 443) ? "" : `:${s.port}`;
+  const host = config.tailnet ? `${s.host}.${config.tailnet}` : s.host;
+  return `${scheme}://${host}${port}${s.path || "/"}`;
+}
+
 function card(s) {
-  const linked = s.port !== null;
+  const linked = s.port !== null || s.host !== null;
+  const label = s.host ? el("span", "port", s.host) : linked && s.port !== 443 ? el("span", "port", `:${s.port}`) : null;
   const inner = [
-    el("b", "", el("span", `dot ${s.status}`), s.name, linked && s.port !== 443 ? el("span", "port", `:${s.port}`) : null),
+    el("b", "", el("span", `dot ${s.status}`), s.name, label),
     el("span", "desc", s.description),
   ];
   if (!linked) return el("div", "card", ...inner);
   const a = el("a", "card", ...inner);
+  if (s.host) {
+    a.href = remoteHref(s);
+    return a;
+  }
   // tailscale serve answers on the tailnet FQDN only, so a port link built from
   // a short hostname does not connect. That did not matter while this page was
   // always opened at the FQDN; it broke every link the moment nginx made
@@ -42,6 +58,7 @@ async function load() {
   try {
     const data = await (await fetch("/api/services")).json();
     config.fqdn = data.fqdn || "";
+    config.tailnet = data.tailnet || "";
     document.title = data.title;
     document.getElementById("title").textContent = data.title;
     document.getElementById("checked").textContent = `checked ${new Date(data.checkedAt).toLocaleTimeString()}`;

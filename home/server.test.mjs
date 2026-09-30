@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
-import { buildStatus, checkOne, createServer } from "./server.mjs";
+import { buildStatus, checkOne, createServer, defaultServicesFile, tailnetSuffix } from "./server.mjs";
 
 let server, base, tmp;
 const config = { title: "t", groups: [{ name: "G", services: [
@@ -40,4 +40,36 @@ test("serves the page, the api, and refuses odd paths", async () => {
   assert.equal((await fetch(base + "/..%2fserver.mjs")).status, 404);
   assert.equal((await fetch(base + "/.hidden")).status, 404);
   assert.equal((await fetch(base + "/", { method: "POST" })).status, 405);
+});
+
+test("a service on another machine keeps its short host and scheme; {tailnet} checks use the suffix", async () => {
+  const seen = [];
+  const record = async url => { seen.push(url); return { status: 200 }; };
+  const cfg = { fqdn: "home.example.ts.net", groups: [{ name: "G", services: [
+    { name: "Remote", host: "server", port: 3443, check: "https://server.{tailnet}:3443/ping" },
+    { name: "HA", host: "homeassistant", scheme: "http", port: null, check: "http://homeassistant.{tailnet}/" },
+    { name: "Local", port: 3743, check: "http://127.0.0.1:3702/" },
+  ] }] };
+  const s = await buildStatus(cfg, record);
+  assert.equal(s.tailnet, "example.ts.net");
+  assert.deepEqual(seen, ["https://server.example.ts.net:3443/ping", "http://homeassistant.example.ts.net/", "http://127.0.0.1:3702/"]);
+  assert.deepEqual(s.groups[0].services.map(x => [x.host, x.scheme]), [["server", "https"], ["homeassistant", "http"], [null, "https"]]);
+});
+
+test("a {tailnet} check without a tailnet name is unknown, not down", async () => {
+  const s = await buildStatus({ fqdn: "", groups: [{ name: "G", services: [{ name: "R", host: "server", check: "https://server.{tailnet}/" }] }] }, fake);
+  assert.equal(s.groups[0].services[0].status, "unknown");
+  assert.equal(tailnetSuffix(""), "");
+});
+
+test("each box reads its own service list, else services.json", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "home-svc-"));
+  try {
+    assert.equal(defaultServicesFile(dir, "home"), path.join(dir, "services.json"));
+    await fs.writeFile(path.join(dir, "services.home.json"), "{}");
+    assert.equal(defaultServicesFile(dir, "home"), path.join(dir, "services.home.json"));
+    assert.equal(defaultServicesFile(dir, "server"), path.join(dir, "services.json"));
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });

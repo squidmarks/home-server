@@ -1,7 +1,7 @@
-# Home page for the server. Run from ~/infra/home:  docker compose up -d
-# Host networking so it can check each service on 127.0.0.1; it listens only on
-# 127.0.0.1:3090 and is published to the tailnet with:
-#   sudo tailscale serve --bg --https=443 http://127.0.0.1:3090
+# The tailnet home page, hosted on the `home` box: links to every service on
+# every box (see services.<hostname>.json). Run from ~/infra/home:  docker compose up -d
+# Host networking so it can check each local service on 127.0.0.1; it listens only
+# on 127.0.0.1:3090 and is published to the tailnet by tailscale/serve.sh (:443).
 services:
   home:
     image: node:22-slim

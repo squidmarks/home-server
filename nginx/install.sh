@@ -10,4 +10,4 @@ sudo ln -sf /etc/nginx/sites-available/server.conf /etc/nginx/sites-enabled/serv
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
-echo "routing live:  http://server/  /llm/  /bench/  /grafana/  /mongo/"
+echo "routing live:  http://server/ (-> /llm/admin/)  /llm/  /bench/  /grafana/  /mongo/"
