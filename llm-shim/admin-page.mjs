@@ -17,6 +17,7 @@ export function adminPage() {
  .up{background:var(--good)} .down{background:var(--bad)} .unknown{background:var(--muted)}
  .name{font-weight:600} .note{color:var(--muted);font-size:13px}
  h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px;font-weight:600}
+ select{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--fg)}
  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px;margin-top:12px}
  .metric{display:flex;flex-direction:column;gap:1px;min-width:0}
  .mlabel{color:var(--muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
@@ -119,6 +120,24 @@ async function draw(){
     ? \`<div class="card"><div class="row"><span class="name">Now</span></div><div class="metrics">\${cells}</div></div>\`
     : "";
 
+  // The engine's configuration, as opposed to which model it holds. Shown
+  // beside the model because that is where you look when you are about to run
+  // something and want to know what it will run as. serve-sly.sh has no
+  // profiles, so it says so rather than offering a control that would 409.
+  const pf = s.profile;
+  const profileRow = !pf ? "" : \`<div class="card"><div class="row">
+      <span class="name">Profile</span>
+      <span class="pill">\${esc(pf.profile ?? "unknown")}</span>
+      <span class="spacer"></span>
+      \${pf.switchable && (pf.available || []).length
+        ? \`<select id="profsel" \${(sw||busy||s.inFlight>0)?"disabled":""}>
+             \${(pf.available||[]).map(n => \`<option \${n===pf.profile?"selected":""}>\${esc(n)}</option>\`).join("")}
+           </select>
+           <button class="primary" \${(sw||busy||s.inFlight>0)?"disabled":""}
+             onclick="switchProfile(document.getElementById('profsel').value)">Switch</button>\`
+        : \`<span class="note">this engine has one fixed configuration</span>\`}
+    </div></div>\`;
+
   app.innerHTML = metrics
     + (sw ? \`<div class="card"><div class="row"><span class="dot unknown"></span>
         <span class="name">Loading \${esc(s.switching.to)}…</span>
@@ -126,7 +145,18 @@ async function draw(){
         <pre>\${esc(s.switching.log || "starting…")}</pre></div>\` : "")
     + \`<h2>Model</h2>\`
     + models
+    + profileRow
     + (notes.length ? \`<div class="card note">\${notes.map(esc).join("<br>")}</div>\` : "");
+}
+async function switchProfile(name){
+  if (!name) return;
+  if (!confirm("Switch to profile " + name + "? This restarts the engine and takes a few minutes.")) return;
+  busy = true; draw();
+  try {
+    const r = await fetch(BASE + "/admin/profile", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({profile:name})});
+    if (!r.ok) { const b = await r.json().catch(() => ({})); alert(b.error || ("HTTP " + r.status)); }
+  } finally { busy = false; }
+  draw();
 }
 async function loadModel(id){
   if (!confirm("Load " + id + "? The card holds one model, so whatever is loaded now stops. This takes a few minutes.")) return;
