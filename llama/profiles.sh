@@ -20,6 +20,7 @@
 #               ctx32k|64k|128k  a smaller KV allocation than the 256K default
 #               ub1024|2048  a larger physical batch for prompt processing
 #               cram16|cram0 prompt-cache size: 16 GiB, or 0 to turn it off
+#   vision      vision       --mmproj: load the vision projector so images work
 #   sampling    temp0        --temp 0: greedy. CONTRAINDICATED -- see the note below;
 #                            kept only to reproduce the runs that used it
 #
@@ -83,9 +84,10 @@ PORT="${LLAMA_PORT:-8090}"
 
 MODEL_DEFAULT="$MODELS/Qwen3.8-27B-UD-Q4_K_M.gguf"
 MTP_DRAFT="$MODELS/mtp-Qwen3.8-27B-Q4_0.gguf"
+MMPROJ="${MMPROJ:-$MODELS/mmproj-F16.gguf}"
 
-MODIFIERS="q6 moe mtp2 mtp3 mtp5 ngram nopreserve cachereuse ctx32k ctx64k ctx128k ub1024 ub2048 cram16 cram0 temp0"
-EXAMPLES="base mtp3 mtp3-temp0 mtp3-ngram mtp3-nopreserve mtp3-cachereuse mtp3-ctx64k mtp3-ub2048 q6-mtp3 moe"
+MODIFIERS="q6 moe mtp2 mtp3 mtp5 ngram nopreserve cachereuse ctx32k ctx64k ctx128k ub1024 ub2048 cram16 cram0 vision temp0"
+EXAMPLES="base mtp3 mtp3-temp0 mtp3-vision mtp3-ngram mtp3-nopreserve mtp3-cachereuse mtp3-ctx64k mtp3-ub2048 q6-mtp3 moe"
 CACHE_REUSE_CHUNK="${CACHE_REUSE_CHUNK:-256}"
 
 # Flags shared by every profile: all layers on the GPU, one slot (runs are serial),
@@ -99,7 +101,7 @@ common() {
 # Read a profile name into P_MODEL, P_FLAGS, P_ALIAS and the canonical P_NAME.
 # Fails on an unknown modifier, two of a kind, or a pairing we have no files for.
 parse_profile() {
-  local name="$1" part model="" mtp="" ngram="" nopreserve="" cachereuse="" ctx="" ub="" cram="" temp0=""
+  local name="$1" part model="" mtp="" ngram="" nopreserve="" cachereuse="" ctx="" ub="" cram="" vision="" temp0=""
   for part in ${name//-/ }; do
     case "$part" in
       base) ;;
@@ -119,6 +121,7 @@ parse_profile() {
       ub2048) ub=2048 ;;
       cram16) cram=16384 ;;
       cram0) cram=0 ;;
+      vision) vision=1 ;;
       temp0) temp0=1 ;;
       *) echo "unknown modifier '$part' in '$name' (have: base $MODIFIERS)" >&2; return 1 ;;
     esac
@@ -152,6 +155,20 @@ parse_profile() {
   [ -n "$ub" ] && flags+=(-ub "$ub")
   # An empty string means "leave the default"; 0 is a real value, so test for set.
   [ -n "${cram+set}" ] && [ -n "$cram" ] && flags+=(--cache-ram "$cram")
+  # The vision projector, kept OFF the card. llama.cpp's automatic VRAM
+  # calculation under-reserves for the encoder and the failure lands when an
+  # image ARRIVES ("CUDA error: the resource allocation failed"), not at
+  # startup -- the same shape as vLLM's --skip-mm-profiling, which is why that
+  # is not set on the vLLM side either. At 262144 this profile already uses
+  # 27.5 of 31.9 GiB, so there is no room to gamble; the host has ~24 GiB free
+  # and the encoder runs there instead. Vision gets slower, text is untouched.
+  #
+  # Unlike vLLM there is no --limit-mm-per-prompt here: llama.cpp caps images
+  # only by context, so a conversation can carry many rather than one.
+  if [ -n "$vision" ]; then
+    [ -f "$MMPROJ" ] || { echo "vision needs $MMPROJ (not found)" >&2; return 1; }
+    flags+=(--mmproj "$MMPROJ" --no-mmproj-offload)
+  fi
   # Greedy: top-p and top-k in the shared flags stop mattering once this is set.
   [ -n "$temp0" ] && flags+=(--temp 0)
   P_FLAGS="${flags[*]:-}"
@@ -169,6 +186,7 @@ parse_profile() {
   [ -n "$ub" ] && parts+=("ub$ub")
   [ "$cram" = 16384 ] && parts+=(cram16)
   [ "$cram" = 0 ] && parts+=(cram0)
+  [ -n "$vision" ] && parts+=(vision)
   [ -n "$temp0" ] && parts+=(temp0)
   if [ ${#parts[@]} -eq 0 ]; then
     P_NAME=base
