@@ -408,6 +408,28 @@ export const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       return res.end(html);
     }
+    // Both engines must answer this the same way. vLLM reports max_model_len
+    // here already; llama.cpp reports nothing and keeps n_ctx on /props, so the
+    // shim fills it in. Without this a caller has to know which engine it is
+    // talking to, which is the one thing this service exists to hide -- and a
+    // caller that instead keeps its own hardcoded number gets it wrong the
+    // first time the engine behind a model id changes, silently.
+    if (url.pathname === "/v1/models" && req.method === "GET") {
+      const cur = await currentBackend();
+      if (!cur) return json(res, 503, { error: { message: "no engine is up", type: "no_backend" } });
+      const r = await fetch(`${cur.baseUrl}/v1/models`, { signal: AbortSignal.timeout(4000) });
+      const body = await r.json().catch(() => null);
+      if (!r.ok || !Array.isArray(body?.data)) return json(res, r.status || 502, body ?? { error: { message: "engine did not answer /v1/models" } });
+      let ctx = null;
+      if (body.data.some(m => !Number.isFinite(m?.max_model_len))) {
+        ctx = typeof cur.contextWindow === "function" ? await cur.contextWindow().catch(() => null) : null;
+      }
+      return json(res, 200, {
+        ...body,
+        data: body.data.map(m => (Number.isFinite(m?.max_model_len) || ctx == null ? m : { ...m, max_model_len: ctx })),
+      });
+    }
+
     if (url.pathname === "/health") return json(res, 200, { ok: true, backend: (await currentBackend())?.id ?? null });
 
     const adapter = await currentBackend();

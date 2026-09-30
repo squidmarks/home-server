@@ -14,6 +14,28 @@ import { fromLlamaTimings, fromVllmCounters, parsePrometheus } from "../engine-m
 
 const timeout = ms => AbortSignal.timeout(ms);
 
+/**
+ * Pure: llama.cpp's context window out of /props.
+ *
+ * vLLM publishes max_model_len on /v1/models; llama.cpp publishes nothing there
+ * and puts n_ctx under /props instead, in a spot that has moved between builds.
+ * Callers should not have to learn two engines' shapes, so the shim normalises
+ * it and tries each place n_ctx has lived rather than pinning one.
+ */
+export function ctxFromProps(j) {
+  const cands = [
+    j?.default_generation_settings?.n_ctx,
+    j?.default_generation_settings?.params?.n_ctx,
+    j?.n_ctx,
+  ];
+  for (const c of cands) {
+    const n = Number(c);
+    // 0 is llama.cpp's "unset", not a real window, so it is not an answer.
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
 export const llama = {
   name: "llama.cpp",
   id: "llama",
@@ -37,6 +59,15 @@ export const llama = {
   /** llama.cpp puts its own timings in the response body. */
   fromBody(body) {
     return fromLlamaTimings(body?.timings);
+  },
+  /** The window the server was actually started with, not what a config claims. */
+  async contextWindow() {
+    try {
+      const r = await fetch(`${this.baseUrl}/props`, { signal: timeout(2500) });
+      return r.ok ? ctxFromProps(await r.json()) : null;
+    } catch {
+      return null;
+    }
   },
 };
 
