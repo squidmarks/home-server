@@ -21,7 +21,10 @@ services:
     network_mode: host
     env_file: .env
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The directory, not the file: deploys replace the Caddyfile (new inode),
+      # which a single-file bind mount would never see, so a reload would keep
+      # serving the old routes.
+      - ./:/etc/caddy:ro
       - caddy-data:/data
       - caddy-config:/config
     mem_limit: 256m
