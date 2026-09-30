@@ -17,10 +17,12 @@
 //   SWITCH_CMD   the privileged script that starts/stops engines
 
 import http from "node:http";
+import os from "node:os";
 import { spawn } from "node:child_process";
 import { ADAPTERS, adapterFor, detect } from "./adapters/index.mjs";
 import { energyOf, powerConfig, readPlug } from "./power.mjs";
 import { MODELS, modelFor, residentFrom } from "./models.mjs";
+import { readGpu, readHost, queueFrom } from "./telemetry.mjs";
 
 const PORT = Number(process.env.PORT || 8091);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -306,6 +308,25 @@ function runSwitch(model) {
   });
 }
 
+/**
+ * The engine's own queue gauges. vLLM exposes them; llama.cpp does not, so this
+ * is null on that backend rather than an error -- the page simply omits the row.
+ */
+async function engineQueue(adapter) {
+  if (!adapter?.baseUrl) return null;
+  const r = await fetch(`${adapter.baseUrl}/metrics`, { signal: AbortSignal.timeout(2000) });
+  if (!r.ok) return null;
+  const { parsePrometheus } = await import("./engine-metrics.mjs");
+  return queueFrom(parsePrometheus(await r.text()));
+}
+
+/** What the box is drawing at the wall, if a smart plug is configured. */
+async function plugWatts() {
+  if (!POWER.url) return null;
+  const s = await readPlug(POWER.url, { timeoutMs: 2000 });
+  return typeof s?.watts === "number" ? Math.round(s.watts) : null;
+}
+
 export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   try {
@@ -333,6 +354,12 @@ export const server = http.createServer(async (req, res) => {
         power: { plug: POWER.url || null, idleWatts: IDLE_WATTS, schedule: POWER.schedule?.name ?? null },
         canSwitch: Boolean(SWITCH_CMD),
         lastRequest,
+        // Live telemetry for the page. Each is null when it cannot be read --
+        // an absent sensor must not arrive as a zero, which reads as "idle".
+        gpu: await readGpu().catch(() => null),
+        host: await readHost(os.cpus().length).catch(() => null),
+        queue: await engineQueue(cur).catch(() => null),
+        wallWatts: await plugWatts().catch(() => null),
       });
     }
     if (url.pathname === "/admin/backend" && req.method === "POST") {

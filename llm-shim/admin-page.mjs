@@ -16,6 +16,11 @@ export function adminPage() {
  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
  .up{background:var(--good)} .down{background:var(--bad)} .unknown{background:var(--muted)}
  .name{font-weight:600} .note{color:var(--muted);font-size:13px}
+ .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px;margin-top:12px}
+ .metric{display:flex;flex-direction:column;gap:1px;min-width:0}
+ .mlabel{color:var(--muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+ .mvalue{font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+ .msub{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
  .spacer{flex:1}
  button{font:inherit;padding:7px 14px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -80,7 +85,38 @@ async function draw(){
   if (r.canSwitchAt) notes.push("Held less than the " + Math.round((r.minMs||0)/60000)
     + " min minimum residency — another model can be loaded after "
     + new Date(r.canSwitchAt).toLocaleTimeString() + ".");
-  app.innerHTML = models
+  // Live metrics. Every figure is omitted when the shim could not read it,
+  // rather than shown as 0: a zero here reads as "idle" or "cold", which is a
+  // different claim from "no sensor". llama.cpp exposes no queue gauges, so
+  // that row simply does not appear on that backend.
+  const metric = (label, value, sub) => value == null ? "" :
+    \`<div class="metric"><span class="mlabel">\${esc(label)}</span>
+      <span class="mvalue">\${esc(value)}</span>
+      \${sub ? \`<span class="msub">\${esc(sub)}</span>\` : ""}</div>\`;
+  const g = s.gpu || {}, h = s.host || {}, q = s.queue || {};
+  const t = g.temps || {};
+  const vram = g.vramUsedMiB != null && g.vramTotalMiB
+    ? Math.round(g.vramUsedMiB / 1024 * 10) / 10 + " / " + Math.round(g.vramTotalMiB / 1024) + " GiB" : null;
+  const cells = [
+    metric("Requests running", q.running == null ? null : q.running,
+           q.waiting != null && q.waiting > 0 ? q.waiting + " waiting" : (q.waiting == null ? null : "none waiting")),
+    metric("Context in use", q.kvCacheUsedPercent == null ? null : q.kvCacheUsedPercent + "%", "of the KV pool"),
+    metric("GPU", g.busyPercent == null ? null : g.busyPercent + "%", "busy"),
+    metric("VRAM", vram),
+    metric("GPU temp", t.junction == null ? null : t.junction + " °C",
+           t.edge == null ? null : "edge " + t.edge + " °C"),
+    metric("GPU power", g.watts == null ? null : g.watts + " W",
+           g.fanRpm == null ? null : g.fanRpm + " rpm"),
+    metric("Wall power", s.wallWatts == null ? null : s.wallWatts + " W",
+           s.power && s.power.idleWatts ? "idle ~" + s.power.idleWatts + " W" : null),
+    metric("Host CPU", h.busyPercent == null ? null : h.busyPercent + "%",
+           h.load1 == null ? null : "load " + h.load1 + " / " + h.cores + " cores"),
+  ].filter(Boolean).join("");
+  const metrics = cells
+    ? \`<div class="card"><div class="row"><span class="name">Now</span></div><div class="metrics">\${cells}</div></div>\`
+    : "";
+
+  app.innerHTML = models + metrics
     + (sw ? \`<div class="card"><div class="row"><span class="dot unknown"></span>
         <span class="name">Loading \${esc(s.switching.to)}…</span>
         <span class="note">this takes minutes: vLLM compiles kernels, llama.cpp reloads ~16&nbsp;GB</span></div>
