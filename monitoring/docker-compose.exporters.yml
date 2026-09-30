@@ -1,0 +1,42 @@
+# Host and container exporters. Every box that should appear in Grafana runs
+# these; Prometheus (docker-compose.monitoring.yml, on home) scrapes them.
+#   home:      included by docker-compose.monitoring.yml, scraped over the docker network
+#   inference: run on its own, published to the tailnet by tailscale/serve.sh
+#              (:9100 node, :9180 cAdvisor), scraped by name from home:
+#                docker compose -f docker-compose.exporters.yml up -d
+services:
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.drm # AMD GPU: busy %, VRAM
+      - --collector.hwmon
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+|snap/.+)($|/)
+    volumes:
+      - /:/host:ro,rslave
+    ports:
+      - "127.0.0.1:9100:9100"
+    networks: [platform]
+
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "127.0.0.1:9180:8080"
+    networks: [platform]
+
+networks:
+  platform:
+    external: true

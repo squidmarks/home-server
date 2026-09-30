@@ -1,12 +1,15 @@
-# Server monitoring: Prometheus + Grafana with exporters for the host, GPU,
-# containers, MongoDB, the llama.cpp inference server, and Agent Studio.
+# Monitoring, on home: Prometheus + Grafana with exporters for both boxes
+# (host, GPU, containers), MongoDB and Agent Studio. The inference box runs only
+# docker-compose.exporters.yml; Prometheus here scrapes it over the tailnet.
 #
-# Everything binds to 127.0.0.1 and is published on the tailnet with
-# `tailscale serve` (see setup.sh). Add a capability to the server by adding a
-# scrape job in prometheus/prometheus.yml and a dashboard JSON under
-# grafana/dashboards/ (or extend grafana/gen_dashboards.py).
+# Everything binds to 127.0.0.1; Caddy publishes Grafana as grafana.<domain>.
+# Add a capability by adding a scrape job in prometheus/prometheus.yml and a
+# panel in grafana/gen_dashboards.py.
 #
-# Run from ~/infra/monitoring:  ./setup.sh && docker compose up -d --build
+# Run from ~/infra/monitoring:  ./setup.sh && docker compose -f docker-compose.monitoring.yml up -d --build
+include:
+  - docker-compose.exporters.yml
+
 services:
   prometheus:
     image: prom/prometheus:latest
@@ -31,7 +34,7 @@ services:
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
-      # Tailnet is the trust boundary (same as the rest of this server), so
+      # Tailnet is the trust boundary (same as the rest of these boxes), so
       # viewing is open to any tailnet device; editing needs the admin login.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
@@ -48,33 +51,6 @@ services:
     networks: [platform]
     depends_on: [prometheus]
 
-  node-exporter:
-    image: prom/node-exporter:latest
-    container_name: node-exporter
-    restart: unless-stopped
-    pid: host
-    command:
-      - --path.rootfs=/host
-      - --collector.drm # AMD GPU: busy %, VRAM
-      - --collector.hwmon
-      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+|snap/.+)($|/)
-    volumes:
-      - /:/host:ro,rslave
-    networks: [platform]
-
-  cadvisor:
-    image: ghcr.io/google/cadvisor:v0.60.6
-    container_name: cadvisor
-    restart: unless-stopped
-    privileged: true
-    devices:
-      - /dev/kmsg
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    networks: [platform]
 
   mongodb-exporter:
     image: percona/mongodb_exporter:0.40
@@ -91,8 +67,9 @@ services:
     container_name: studio-exporter
     restart: unless-stopped
     environment:
-      MONGO_URI: mongodb://metrics:${STUDIO_METRICS_PASSWORD}@mongo:27017/witness_deployed?authSource=admin
-      MONGO_DB: witness_deployed
+      MONGO_URI: mongodb://metrics:${STUDIO_METRICS_PASSWORD}@mongo:27017/agent_studio?authSource=admin
+      MONGO_DB: agent_studio # the platform: requests, sessions, agents, jobs
+      DOMAIN_DB: witness # Witness's own collections (missions, transactions, ...)
     networks: [platform]
 
 volumes:

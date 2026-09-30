@@ -68,18 +68,16 @@
       "services": [
         {
           "name": "Grafana",
-          "description": "Server, inference, MongoDB and studio dashboards",
-          "host": "server",
-          "port": 3300,
-          "check": "https://server.{tailnet}:3300/api/health",
+          "description": "Both boxes, inference, MongoDB and studio dashboards",
+          "port": null,
+          "check": "http://127.0.0.1:3000/api/health",
           "sub": "grafana"
         },
         {
           "name": "Mongoku",
           "description": "Read-only MongoDB browser",
-          "host": "server",
-          "port": 3600,
-          "check": "https://server.{tailnet}:3600/",
+          "port": null,
+          "check": "http://127.0.0.1:3110/",
           "sub": "mongo"
         }
       ]

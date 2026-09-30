@@ -1,7 +1,8 @@
 # Mongoku: web UI for browsing the Mongo server. Connects as the read-only
 # `viewer` user (readAnyDatabase), so it can look but never change anything.
+# The user and its password (.env here) are made by monitoring/setup.sh.
 # Run from ~/infra/mongoku:  docker compose up -d
-# Published to the tailnet with:  sudo tailscale serve --bg --https=3600 http://127.0.0.1:3110
+# Published as mongo.<domain> by Caddy (caddy/).
 services:
   mongoku:
     image: huggingface/mongoku:latest

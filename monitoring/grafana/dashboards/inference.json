@@ -333,7 +333,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "node_drm_memory_vram_used_bytes",
+     "expr": "node_drm_memory_vram_used_bytes{host=~\"inference|\"}",
      "legendFormat": "",
      "refId": "A"
     }
@@ -386,7 +386,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "max(node_hwmon_temp_celsius{chip=~\"0000:02.*\"})",
+     "expr": "max(node_hwmon_temp_celsius{host=~\"inference|\", chip=~\"0000:02.*\"})",
      "legendFormat": "",
      "refId": "A"
     }
@@ -447,7 +447,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "max(node_hwmon_power_average_watt{chip=~\"0000:02.*\"})",
+     "expr": "max(node_hwmon_power_average_watt{host=~\"inference|\", chip=~\"0000:02.*\"})",
      "legendFormat": "",
      "refId": "A"
     }
@@ -698,7 +698,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "node_drm_gpu_busy_percent",
+     "expr": "node_drm_gpu_busy_percent{host=~\"inference|\"}",
      "legendFormat": "busy %",
      "refId": "A"
     }
@@ -750,7 +750,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "node_drm_memory_vram_used_bytes",
+     "expr": "node_drm_memory_vram_used_bytes{host=~\"inference|\"}",
      "legendFormat": "used",
      "refId": "A"
     },
@@ -759,7 +759,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "node_drm_memory_vram_size_bytes",
+     "expr": "node_drm_memory_vram_size_bytes{host=~\"inference|\"}",
      "legendFormat": "total",
      "refId": "B"
     }
@@ -810,7 +810,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "node_hwmon_freq_freq_mhz{chip=~\"0000:02.*\"}",
+     "expr": "node_hwmon_freq_freq_mhz{host=~\"inference|\", chip=~\"0000:02.*\"}",
      "legendFormat": "{{sensor}} MHz",
      "refId": "A"
     }
@@ -860,7 +860,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "node_hwmon_temp_celsius{chip=~\"0000:02.*\"}",
+     "expr": "node_hwmon_temp_celsius{host=~\"inference|\", chip=~\"0000:02.*\"}",
      "legendFormat": "{{sensor}}",
      "refId": "A"
     }
@@ -910,7 +910,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "node_hwmon_power_average_watt{chip=~\"0000:02.*\"}",
+     "expr": "node_hwmon_power_average_watt{host=~\"inference|\", chip=~\"0000:02.*\"}",
      "legendFormat": "draw",
      "refId": "A"
     },
@@ -919,7 +919,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "node_hwmon_power_cap_watt{chip=~\"0000:02.*\"}",
+     "expr": "node_hwmon_power_cap_watt{host=~\"inference|\", chip=~\"0000:02.*\"}",
      "legendFormat": "cap",
      "refId": "B"
     }
@@ -970,7 +970,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "node_hwmon_fan_rpm{chip=~\"0000:02.*\"}",
+     "expr": "node_hwmon_fan_rpm{host=~\"inference|\", chip=~\"0000:02.*\"}",
      "legendFormat": "rpm",
      "refId": "A"
     }

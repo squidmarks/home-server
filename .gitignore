@@ -30,3 +30,4 @@ credentials*
 bench-ui-data/
 benchmark-state/
 results/
+monitoring/prometheus/targets/

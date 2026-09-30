@@ -14,7 +14,9 @@ from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily, REGIS
 from pymongo import MongoClient
 
 client = MongoClient(os.environ["MONGO_URI"], serverSelectionTimeoutMS=5000)
-db = client[os.environ.get("MONGO_DB", "witness_deployed")]
+db = client[os.environ.get("MONGO_DB", "agent_studio")]
+# Witness keeps its own collections in a database of its own.
+domain_db = client[os.environ.get("DOMAIN_DB", "witness")]
 
 CACHE_SECONDS = 10
 _cache = {"at": 0.0, "families": []}
@@ -158,15 +160,15 @@ class StudioCollector:
             "tiller_transaction_mirror",
             "amazon_order_items",
             "merchant_lookup",
-            "agent_memories",
             "missions",
             "taxonomy_nodes",
         ):
-            domain.add_metric([coll], db[coll].estimated_document_count())
+            domain.add_metric([coll], domain_db[coll].estimated_document_count())
+        domain.add_metric(["agent_memories"], db.agent_memories.estimated_document_count())
         yield domain
 
         open_items = GaugeMetricFamily("studio_open_items", "Open items by status", labels=["status"])
-        for g in db.open_items.aggregate([{"$group": {"_id": {"$ifNull": ["$status", "unknown"]}, "n": {"$sum": 1}}}]):
+        for g in domain_db.open_items.aggregate([{"$group": {"_id": {"$ifNull": ["$status", "unknown"]}, "n": {"$sum": 1}}}]):
             open_items.add_metric([str(g["_id"])], g["n"])
         yield open_items
 

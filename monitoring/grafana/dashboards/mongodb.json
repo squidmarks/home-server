@@ -1,7 +1,7 @@
 {
  "uid": "mongodb",
  "title": "MongoDB",
- "description": "Standalone Mongo 8 shared by every app on this server.",
+ "description": "The Mongo 8 on home, shared by every studio.",
  "tags": [
   "server",
   "mongodb"
@@ -319,7 +319,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "sum(rate(container_cpu_usage_seconds_total{name=\"mongo-mongo-1\"}[2m])) * 100",
+     "expr": "sum(rate(container_cpu_usage_seconds_total{host=\"home\", name=\"mongo-mongo-1\"}[2m])) * 100",
      "legendFormat": "",
      "refId": "A"
     }
@@ -677,7 +677,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "container_memory_working_set_bytes{name=\"mongo-mongo-1\"}",
+     "expr": "container_memory_working_set_bytes{host=\"home\", name=\"mongo-mongo-1\"}",
      "legendFormat": "working set",
      "refId": "A"
     }

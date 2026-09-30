@@ -1014,7 +1014,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"agent-studio-.*|agent-service-bench\"}[2m])) * 100",
+     "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{host=\"home\", name=~\"studios-.*\"}[2m])) * 100",
      "legendFormat": "{{name}}",
      "refId": "A"
     }
@@ -1064,7 +1064,7 @@
       "type": "prometheus",
       "uid": "prom"
      },
-     "expr": "sum by (name) (container_memory_working_set_bytes{name=~\"agent-studio-.*|agent-service-bench\"})",
+     "expr": "sum by (name) (container_memory_working_set_bytes{host=\"home\", name=~\"studios-.*\"})",
      "legendFormat": "{{name}}",
      "refId": "A"
     }

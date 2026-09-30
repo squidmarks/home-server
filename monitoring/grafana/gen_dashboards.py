@@ -12,6 +12,7 @@ widths (out of 24) are split evenly unless given.
 """
 import json
 import os
+import re
 import sys
 import urllib.parse
 import urllib.request
@@ -124,12 +125,38 @@ def bargauge(title, expr, legend="{{collection}}", unit="short", desc=""):
     }
 
 
+# Host and container metrics come from both boxes; each series has a `host`
+# label (home / inference, see prometheus.yml). History from before the move
+# has none, and it all came from the inference box, so `inference|` matches it.
+INFERENCE = 'host=~"inference|"'
+HOME = 'host="home"'
+_HOST_METRIC = re.compile(r'\b((?:node|container)_[A-Za-z0-9_]+)(\{[^}]*\})?')
+
+
+def scoped(expr, matcher):
+    """Add `matcher` to every node_*/container_* selector in `expr`."""
+    def add(m):
+        inner = m.group(2)[1:-1] if m.group(2) else ""
+        return f"{m.group(1)}{{{matcher}{', ' + inner if inner else ''}}}"
+    return _HOST_METRIC.sub(add, expr)
+
+
+# The overview's box picker: the value is a regex (see INFERENCE above).
+HOST_VAR = {
+    "name": "host", "label": "Box", "type": "custom",
+    "query": "inference : inference|,home : home",
+    "current": {"text": "inference", "value": "inference|"},
+    "options": [], "includeAll": False, "multi": False,
+}
+
+
 def row_title(text):
     return {"type": "row", "title": text, "collapsed": False, "panels": []}
 
 
-def dashboard(uid, title, rows, tags=None, refresh="15s", time_from="now-6h", description=""):
-    """rows: list of (heading | None, [panel | (panel, width), ...], height)"""
+def dashboard(uid, title, rows, tags=None, refresh="15s", time_from="now-6h", description="", scope=None, variables=None):
+    """rows: list of (heading | None, [panel | (panel, width), ...], height).
+    scope: a host matcher added to every node_*/container_* selector."""
     panels, y, pid = [], 0, 1
     for heading, items, height in rows:
         if heading:
@@ -147,6 +174,8 @@ def dashboard(uid, title, rows, tags=None, refresh="15s", time_from="now-6h", de
             panel = item[0] if isinstance(item, tuple) else item
             w = widths[idx] or share
             panel = dict(panel)
+            if scope:
+                panel["targets"] = [dict(t, expr=scoped(t["expr"], scope)) for t in panel.get("targets", [])]
             panel.update(id=pid, gridPos={"h": height, "w": w, "x": x, "y": y})
             panels.append(panel)
             pid += 1
@@ -167,7 +196,7 @@ def dashboard(uid, title, rows, tags=None, refresh="15s", time_from="now-6h", de
         "links": [
             {"type": "dashboards", "title": "Server dashboards", "tags": ["server"], "asDropdown": True, "includeVars": False, "keepTime": True}
         ],
-        "templating": {"list": []},
+        "templating": {"list": variables or []},
         "annotations": {"list": []},
         "panels": panels,
     }
@@ -182,7 +211,7 @@ def cpu_by_container(over="2m"):
 def overview():
     return dashboard(
         "overview",
-        "Server Overview",
+        "Overview",
         [
             (None, [
                 stat("Targets up", 'sum(up)', desc="Scrape targets reporting healthy (llama needs --metrics)", thresholds=[(1, "green")], color_mode="background"),
@@ -208,7 +237,9 @@ def overview():
                 ts("Temperatures", [('node_hwmon_temp_celsius{chip!~"0000:02.*"} * on(chip, sensor) group_left(label) (node_hwmon_sensor_label or on(chip, sensor) node_hwmon_temp_celsius * 0)', "{{chip}} {{sensor}}")], "celsius"),
             ], 8),
         ],
-        description="Everything on the server at a glance. Drill into the dashboards from the dropdown above.",
+        description="Either box at a glance (pick it above). Drill into the dashboards from the dropdown.",
+        scope='host=~"$host"',
+        variables=[HOST_VAR],
     )
 
 
@@ -250,6 +281,7 @@ def inference():
         ],
         tags=["server", "inference"],
         description="llama.cpp on the R9700. Panels marked with --metrics fill in once llama-server is started with that flag.",
+        scope=INFERENCE,
     )
 
 
@@ -282,7 +314,8 @@ def mongodb():
             ], 8),
         ],
         tags=["server", "mongodb"],
-        description="Standalone Mongo 8 shared by every app on this server.",
+        description="The Mongo 8 on home, shared by every studio.",
+        scope=HOME,
     )
 
 
@@ -317,13 +350,14 @@ def studio():
                 table("Scheduled jobs", 'studio_scheduled_job_next_run_timestamp_seconds * 1000', {"job": "Job", "Value": "Next run"}, unit="dateTimeAsLocal"),
             ], 8),
             ("Agent Studio containers", [
-                ts("CPU", [('sum by (name) (rate(container_cpu_usage_seconds_total{name=~"agent-studio-.*|agent-service-bench"}[2m])) * 100', "{{name}}")], "percent"),
-                ts("Memory", [('sum by (name) (container_memory_working_set_bytes{name=~"agent-studio-.*|agent-service-bench"})', "{{name}}")], "bytes"),
+                ts("CPU", [('sum by (name) (rate(container_cpu_usage_seconds_total{name=~"studios-.*"}[2m])) * 100', "{{name}}")], "percent"),
+                ts("Memory", [('sum by (name) (container_memory_working_set_bytes{name=~"studios-.*"})', "{{name}}")], "bytes"),
                 ts("Sessions and open items", [('studio_sessions', "sessions {{state}}"), ('studio_open_items', "open items {{status}}")], "short"),
             ], 8),
         ],
         tags=["server", "agent-studio"],
         description="Built from what Agent Studio already records in Mongo (requests, tokens, cost, tools). Native app metrics can be added later.",
+        scope=HOME,
     )
 
 

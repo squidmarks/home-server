@@ -33,23 +33,21 @@
 		redir / /admin/
 		reverse_proxy http://{$INFERENCE_FQDN}:8091
 	}
-	@grafana host grafana.{$DOMAIN}
-	handle @grafana {
-		reverse_proxy https://{$INFERENCE_FQDN}:3300 {
-			header_up Host {upstream_hostport}
-		}
-	}
 	@bench host bench.{$DOMAIN}
 	handle @bench {
 		reverse_proxy https://{$INFERENCE_FQDN}:3400 {
 			header_up Host {upstream_hostport}
 		}
 	}
+
+	# --- Monitoring and data (on this box) ---------------------------------
+	@grafana host grafana.{$DOMAIN}
+	handle @grafana {
+		reverse_proxy 127.0.0.1:3000
+	}
 	@mongo host mongo.{$DOMAIN}
 	handle @mongo {
-		reverse_proxy https://{$INFERENCE_FQDN}:3600 {
-			header_up Host {upstream_hostport}
-		}
+		reverse_proxy 127.0.0.1:3110
 	}
 
 	handle {

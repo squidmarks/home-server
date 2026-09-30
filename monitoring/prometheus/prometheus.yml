@@ -2,22 +2,43 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Prometheus runs on home. Every series carries a `host` label: `home`, or
+# `inference` for the GPU box, whose exporters are reached over the tailnet at
+# targets written by setup.sh into targets/ (its name is private, so not here).
 scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
+        labels: { host: home }
 
   - job_name: node # host + AMD GPU (drm/hwmon collectors)
     static_configs:
       - targets: ["node-exporter:9100"]
+        labels: { host: home }
+  - job_name: node-inference
+    scheme: https
+    file_sd_configs:
+      - files: [targets/inference-node.json]
+    relabel_configs: # one `node` job on the dashboards, whichever box
+      - target_label: job
+        replacement: node
 
   - job_name: cadvisor # per-container CPU/memory/network
     static_configs:
       - targets: ["cadvisor:8080"]
+        labels: { host: home }
+  - job_name: cadvisor-inference
+    scheme: https
+    file_sd_configs:
+      - files: [targets/inference-cadvisor.json]
+    relabel_configs:
+      - target_label: job
+        replacement: cadvisor
 
   - job_name: mongodb
     static_configs:
       - targets: ["mongodb-exporter:9216"]
+        labels: { host: home }
 
   # DISABLED. llama-server runs with -np 1 -- ONE slot -- and llama.cpp's
   # /metrics handler submits a task to the same inference queue that serves real
@@ -35,11 +56,13 @@ scrape_configs:
   - job_name: studio # Agent Studio request history (studio-exporter reads Mongo)
     static_configs:
       - targets: ["studio-exporter:9500"]
+        labels: { host: home }
 
   - job_name: agent-service # native metrics: LLM calls/latency/tokens, tools, requests
     metrics_path: /metrics
     static_configs:
-      - targets: ["agent-studio-agent-service-1:3001"]
+      - targets: ["studios-agent-service-1:3001"]
+        labels: { host: home }
 
-  # Add new services here as the server grows: a scrape job here plus a panel
-  # (or dashboard) in grafana/gen_dashboards.py.
+  # Add new services here: a scrape job here plus a panel (or dashboard) in
+  # grafana/gen_dashboards.py.
