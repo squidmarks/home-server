@@ -19,7 +19,8 @@ services:
         soft: 65536
         hard: 65536
     volumes:
-      - ./data:/data/db
+      # MONGO_DATA_DIR (in mongo/.env) puts the data elsewhere, e.g. /data/mongo on home.
+      - ${MONGO_DATA_DIR:-./data}:/data/db
     networks: [platform]
 networks:
   platform:

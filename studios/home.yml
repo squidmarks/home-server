@@ -1,0 +1,102 @@
+# The agent studios on the `home` box (the NUC, which also runs Home Assistant
+# OS as a VM): ONE shared agent-service hosting every studio type, plus one web
+# front end per studio. The service loads each studio's engine (PROFILES) and
+# reads each studio's public URL from studios/home-deployments/<name>/deployment.json.
+# One platform database (agent_studio in the shared Mongo), partitioned by each
+# studio's applicationId. Secrets: ~/agent-studio/studios.env (setup-home.sh).
+#
+# Studios:  Home Studio (home-agent-studio)
+#
+# Ports (all bound to 127.0.0.1, published to the tailnet with `tailscale serve`):
+#   agent-service  3001 -> https :3001 (also the panels origin)
+#   Home Studio    3702 -> https :3743; http <tailnet IP>:8743 for Home Assistant webhooks
+#
+# Run on the box after studios/setup-home.sh:
+#   cd ~/agent-studio && docker compose -f ~/infra/studios/home.yml --env-file studios.env up -d --build
+
+name: studios
+
+services:
+  agent-service:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: Dockerfile
+      args:
+        BUILD_VERSION: ${BUILD_VERSION:-dev}
+    image: studios-agent-service:latest
+    restart: unless-stopped
+    mem_limit: 3g
+    ports:
+      - "127.0.0.1:3001:3001"
+    networks: [default, platform]
+    environment:
+      NODE_ENV: production
+      AGENT_SERVICE_PORT: "3001"
+      LOG_LEVEL: info
+      PROFILES: "@agent-studio/home-engine"
+      DEPLOYMENTS_DIR: /deployments
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-claude-sonnet-5}
+      ROUTER_MODEL: ${DEFAULT_MODEL:-claude-sonnet-5}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # The inference box's llama-server, once it's reachable from here.
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-}
+      MONGO_URI: mongodb://agent_studio:${STUDIOS_DB_PASSWORD}@mongo:27017/?authSource=agent_studio
+      MONGO_DB: agent_studio
+      # Every studio's web origin (comma-separated for CORS, space-separated for frames).
+      CORS_ORIGINS: https://${STUDIOS_HOST}:3743
+      PANEL_FRAME_ANCESTORS: https://${STUDIOS_HOST}:3743
+      PANELS_PUBLIC_URL: https://${STUDIOS_HOST}:3001
+      PANEL_TOKEN_SECRET: ${PANEL_TOKEN_SECRET}
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY}
+      MCP_INTERNAL_API_KEY: ${MCP_INTERNAL_API_KEY}
+      # No email or messaging accounts on this box yet.
+      DISABLED_TOOLS: "notify,notify-list-recipients,telegram-*"
+
+      # --- Home Studio engine ---------------------------------------------
+      HOME_REQUIRE_AUTH: "false"
+      HOME_ADMIN_EMAILS: ${HOME_ADMIN_EMAILS:-}
+      # A long-lived token for the "agent-studio" HA user (admin, not
+      # local-only). Entities in HA_READONLY_ENTITIES are never changed.
+      HA_BASE_URL: ${HA_BASE_URL}
+      HA_TOKEN: ${HA_TOKEN}
+      HA_READONLY_ENTITIES: ${HA_READONLY_ENTITIES:-}
+      # HA can't resolve tailnet names, so its webhook calls use this box's
+      # tailnet IP over plain HTTP (a tailnet-only port; see tailscale/serve.sh).
+      HA_WEBHOOK_BASE_URL: http://${STUDIOS_TAILNET_IP}:8743
+    volumes:
+      - ${HOME}/infra/studios/home-deployments:/deployments:ro
+
+  home-studio-web:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: apps/studio-web/Dockerfile
+      args:
+        APP_PROFILE: home
+        NEXT_PUBLIC_AGENT_SERVICE_URL: https://${STUDIOS_HOST}:3001
+        NEXT_PUBLIC_AUTH_ENABLED: "false"
+        NEXT_PUBLIC_APPLICATION_ID: home-agent-studio
+        NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
+    image: home-studio-web:latest
+    restart: unless-stopped
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:3702:3000"
+      # Home Assistant's webhook calls, straight on this box's tailnet IP (so only
+      # the tailnet can reach it). Not via `tailscale serve`: that routes by
+      # hostname, and HA can only use the IP. Needs net.ipv4.ip_nonlocal_bind=1
+      # so the port binds at boot even before tailscale has the address.
+      - "${STUDIOS_TAILNET_IP}:8743:3000"
+    environment:
+      NODE_ENV: production
+      AGENT_SERVICE_URL: http://agent-service:3001
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: https://${STUDIOS_HOST}:3743
+    depends_on:
+      - agent-service
+
+networks:
+  default: {}
+  platform:
+    external: true
