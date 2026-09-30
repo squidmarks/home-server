@@ -1,0 +1,28 @@
+# The front door on `home`: one wildcard certificate for the domain, and a
+# name per service instead of a port. It binds ONLY to this box's tailnet IP,
+# and the domain's DNS records point at that IP, so every name works from any
+# tailnet device and from nowhere else.
+#
+# Settings live in a gitignored caddy/.env (compose reads it automatically):
+#   DOMAIN=            the domain (e.g. example.com)
+#   CF_API_TOKEN=      Cloudflare token limited to Zone -> DNS -> Edit on DOMAIN
+#   TAILNET_IP=        this box's tailnet IPv4 (`tailscale ip -4`)
+#   HA_UPSTREAM=       Home Assistant, e.g. http://<HA's tailnet IP>
+#   INFERENCE_FQDN=    the inference box's tailnet name (its shim and tools)
+# Run from ~/infra/caddy:  docker compose up -d --build
+services:
+  caddy:
+    build: .
+    image: homelab-caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    mem_limit: 256m
+volumes:
+  caddy-data: {}
+  caddy-config: {}

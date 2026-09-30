@@ -1,0 +1,81 @@
+# Name-based routing for everything on the tailnet. One wildcard certificate
+# (DNS challenge through Cloudflare) covers the domain and every subdomain.
+{
+	# Tailnet only: never listen on the LAN or anywhere else.
+	default_bind {$TAILNET_IP}
+}
+
+{$DOMAIN}, *.{$DOMAIN} {
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+	}
+
+	# The home page: links to everything.
+	@home host {$DOMAIN}
+	handle @home {
+		reverse_proxy 127.0.0.1:3090
+	}
+
+	# --- Agent studios (one shared agent-service) ------------------------
+	@api host api.{$DOMAIN}
+	handle @api {
+		reverse_proxy 127.0.0.1:3001
+	}
+	@studio host studio.{$DOMAIN}
+	handle @studio {
+		reverse_proxy 127.0.0.1:3702
+	}
+	@witness host witness.{$DOMAIN}
+	handle @witness {
+		# oauth2-proxy (Google login) in front of the Witness web app.
+		reverse_proxy 127.0.0.1:4180
+	}
+	@connect host connect.{$DOMAIN}
+	handle @connect {
+		# Witness's Gmail/Drive connection callback.
+		reverse_proxy 127.0.0.1:8085
+	}
+	@invest host invest.{$DOMAIN}
+	handle @invest {
+		reverse_proxy 127.0.0.1:3704
+	}
+
+	# --- Home Assistant (a VM on this box, reached over the tailnet) ------
+	@ha host ha.{$DOMAIN}
+	handle @ha {
+		reverse_proxy {$HA_UPSTREAM} {
+			# HA rejects forwarded requests from proxies it hasn't been told to
+			# trust; without the header it just sees this box's tailnet IP.
+			header_up -X-Forwarded-For
+		}
+	}
+
+	# --- The inference box -------------------------------------------------
+	@llm host llm.{$DOMAIN}
+	handle @llm {
+		redir / /admin/
+		reverse_proxy http://{$INFERENCE_FQDN}:8091
+	}
+	@grafana host grafana.{$DOMAIN}
+	handle @grafana {
+		reverse_proxy https://{$INFERENCE_FQDN}:3300 {
+			header_up Host {upstream_hostport}
+		}
+	}
+	@bench host bench.{$DOMAIN}
+	handle @bench {
+		reverse_proxy https://{$INFERENCE_FQDN}:3400 {
+			header_up Host {upstream_hostport}
+		}
+	}
+	@mongo host mongo.{$DOMAIN}
+	handle @mongo {
+		reverse_proxy https://{$INFERENCE_FQDN}:3600 {
+			header_up Host {upstream_hostport}
+		}
+	}
+
+	handle {
+		respond "Unknown service" 404
+	}
+}

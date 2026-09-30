@@ -2,5 +2,5 @@
   "name": "home",
   "engine": "home-agent-studio",
   "applicationId": "home-agent-studio",
-  "studioPublicUrl": "https://{fqdn}:3743"
+  "studioPublicUrl": "https://studio.{domain}"
 }

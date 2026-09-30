@@ -19,6 +19,8 @@ services:
       # automatically -- rather than committing it: it identifies a private
       # network. Unset just leaves those links blank.
       TAILNET_FQDN: ${TAILNET_FQDN:-}
+      # The domain Caddy serves (also in home/.env); links become https://<sub>.<domain>.
+      DOMAIN: ${DOMAIN:-}
     volumes:
       - ./:/app:ro
     mem_limit: 128m

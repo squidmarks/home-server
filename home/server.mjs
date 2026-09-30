@@ -2,8 +2,9 @@
 // Zero dependencies. Each box reads services.<hostname>.json (else services.json);
 // edit it to add or change an app. A service on another machine names it by its
 // short name in `host`, and checks may use "{tailnet}" for the tailnet suffix --
-// both are completed from TAILNET_FQDN, so no tailnet name is committed.
-//   PORT (default 3090), HOST (default 127.0.0.1), SERVICES_FILE, TAILNET_FQDN
+// both are completed from TAILNET_FQDN, so no tailnet name is committed. When
+// DOMAIN is set, a service with `sub` links to https://<sub>.<DOMAIN> instead.
+//   PORT (default 3090), HOST (default 127.0.0.1), SERVICES_FILE, TAILNET_FQDN, DOMAIN
 import http from "node:http";
 import fs from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -58,6 +59,7 @@ export async function buildStatus(config, fetchImpl = fetch) {
           port: s.port ?? null,
           path: s.path ?? "",
           host: s.host ?? null,
+          sub: s.sub ?? null,
           scheme: s.scheme ?? "https",
           status: await checkOne(check(s.check), fetchImpl),
         })),
@@ -70,6 +72,8 @@ export async function buildStatus(config, fetchImpl = fetch) {
     // is rather than guessing from the address it happened to be opened at.
     fqdn,
     tailnet,
+    // With a domain, every service is https://<sub>.<domain> (served by caddy/).
+    domain: config.domain ?? process.env.DOMAIN ?? "",
     groups,
     checkedAt: new Date().toISOString(),
   };

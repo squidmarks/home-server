@@ -73,3 +73,11 @@ test("each box reads its own service list, else services.json", async () => {
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test("with a domain, services carry their subdomain for https://<sub>.<domain> links", async () => {
+  const s = await buildStatus({ domain: "example.com", groups: [{ name: "G", services: [
+    { name: "Studio", sub: "studio", port: 3743 }, { name: "Home", sub: "" }, { name: "Plain", port: 1 },
+  ] }] }, fake);
+  assert.equal(s.domain, "example.com");
+  assert.deepEqual(s.groups[0].services.map(x => x.sub), ["studio", "", null]);
+});

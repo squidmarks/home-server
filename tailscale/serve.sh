@@ -15,7 +15,7 @@ path() { sudo tailscale serve --bg --set-path="$1" "http://127.0.0.1:$2" >/dev/n
 
 case "$(hostname)" in
   home)
-    serve 443  3090 "home page (links to every service on the tailnet)"
+    # :443 belongs to Caddy (caddy/), which serves every name under the domain.
     serve 3001 3001 "shared agent-service, all studios (also the panels origin)"
     serve 3743 3702 "Home Studio"
     serve 3443 4180 "Witness studio (behind oauth2-proxy)"

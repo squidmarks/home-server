@@ -8,19 +8,16 @@
 # missions, life state, ...) in the `witness` DB.
 # Secrets: ~/agent-studio/studios.env (setup-home.sh, plus each studio's keys).
 #
-# Studios:
-#   Home Studio        home-agent-studio       https :3743
-#   Witness            witness-agent-studio    https :3443 (Google login via oauth2-proxy)
-#   Investment Studio  benchmark-agent-studio  https :3543
+# Studios (each at its own name under STUDIOS_DOMAIN, served by caddy/):
+#   Home Studio        home-agent-studio       studio.<domain>
+#   Witness            witness-agent-studio    witness.<domain> (Google login via oauth2-proxy)
+#                                              connect.<domain> (Gmail/Drive OAuth callback)
+#   Investment Studio  benchmark-agent-studio  invest.<domain>
+#   shared agent-service                       api.<domain> (also the panels origin)
 #
-# Ports (all bound to 127.0.0.1 and published to the tailnet by tailscale/serve.sh,
-# except Home Assistant's webhook port):
-#   agent-service      3001 -> :3001 (also the panels origin)
-#   Home Studio web    3702 -> :3743; and <tailnet IP>:8743 for Home Assistant webhooks
-#   Witness login      4180 -> :3443 (oauth2-proxy in front of the Witness web app)
-#   Witness OAuth      8085 -> :8443 (Gmail/Drive connection callback)
-#   Investment web     3704 -> :3543
-#   MCP server         3002 (reached publicly through the Cloudflare tunnel)
+# Ports, all bound to 127.0.0.1 and reached through Caddy: agent-service 3001,
+# Home Studio 3702, Witness login 4180, Witness OAuth 8085, Investment 3704,
+# MCP server 3002 (public only through the Cloudflare tunnel).
 #
 # Local models come from the inference box's shim (LOCAL_LLM_BASE_URL in
 # studios.env, http://<inference box>:8091/v1). A 503 with retry-after from it
@@ -63,15 +60,15 @@ services:
       MONGO_URI: mongodb://agent_studio:${STUDIOS_DB_PASSWORD}@mongo:27017/?authSource=agent_studio
       MONGO_DB: agent_studio
       # Every studio's web origin (comma-separated for CORS, space-separated for frames).
-      CORS_ORIGINS: https://${STUDIOS_HOST}:3743,https://${STUDIOS_HOST}:3443,https://${STUDIOS_HOST}:3543
-      PANEL_FRAME_ANCESTORS: https://${STUDIOS_HOST}:3743 https://${STUDIOS_HOST}:3443 https://${STUDIOS_HOST}:3543
-      PANELS_PUBLIC_URL: https://${STUDIOS_HOST}:3001
+      CORS_ORIGINS: https://studio.${STUDIOS_DOMAIN},https://witness.${STUDIOS_DOMAIN},https://invest.${STUDIOS_DOMAIN}
+      PANEL_FRAME_ANCESTORS: https://studio.${STUDIOS_DOMAIN} https://witness.${STUDIOS_DOMAIN} https://invest.${STUDIOS_DOMAIN}
+      PANELS_PUBLIC_URL: https://api.${STUDIOS_DOMAIN}
       PANEL_TOKEN_SECRET: ${PANEL_TOKEN_SECRET}
       SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY}
       MCP_INTERNAL_API_KEY: ${MCP_INTERNAL_API_KEY}
       # The default for anything without a deployment of its own; each studio's
       # real URL comes from its deployment.json.
-      STUDIO_PUBLIC_URL: https://${STUDIOS_HOST}:3743
+      STUDIO_PUBLIC_URL: https://studio.${STUDIOS_DOMAIN}
 
       # --- Home Studio engine ---------------------------------------------
       HOME_REQUIRE_AUTH: "false"
@@ -81,15 +78,15 @@ services:
       HA_BASE_URL: ${HA_BASE_URL}
       HA_TOKEN: ${HA_TOKEN}
       HA_READONLY_ENTITIES: ${HA_READONLY_ENTITIES:-}
-      # HA can't resolve tailnet names, so its webhook calls use this box's
-      # tailnet IP over plain HTTP (see the Home Studio web ports below).
-      HA_WEBHOOK_BASE_URL: http://${STUDIOS_TAILNET_IP}:8743
+      # Where Home Assistant sends webhook calls. The studio's own name works:
+      # HA resolves it through public DNS to this box's tailnet IP.
+      HA_WEBHOOK_BASE_URL: ${HA_WEBHOOK_BASE_URL:-https://studio.${STUDIOS_DOMAIN}}
 
       # --- Witness engine -------------------------------------------------
       WITNESS_REQUIRE_AUTH: "false"
       WITNESS_MONGO_URI: mongodb://witness:${WITNESS_DB_PASSWORD}@mongo:27017/witness?authSource=witness
       WITNESS_TOKEN_ENCRYPTION_KEY: ${WITNESS_TOKEN_ENCRYPTION_KEY}
-      WITNESS_OAUTH_EDGE_URL: https://${STUDIOS_HOST}:8443
+      WITNESS_OAUTH_EDGE_URL: https://connect.${STUDIOS_DOMAIN}
       WITNESS_ADMIN_EMAILS: ${WITNESS_ADMIN_EMAILS}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
@@ -126,7 +123,7 @@ services:
       dockerfile: apps/studio-web/Dockerfile
       args:
         APP_PROFILE: home
-        NEXT_PUBLIC_AGENT_SERVICE_URL: https://${STUDIOS_HOST}:3001
+        NEXT_PUBLIC_AGENT_SERVICE_URL: https://api.${STUDIOS_DOMAIN}
         NEXT_PUBLIC_AUTH_ENABLED: "false"
         NEXT_PUBLIC_APPLICATION_ID: home-agent-studio
         NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
@@ -144,7 +141,7 @@ services:
       NODE_ENV: production
       AGENT_SERVICE_URL: http://agent-service:3001
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      NEXTAUTH_URL: https://${STUDIOS_HOST}:3743
+      NEXTAUTH_URL: https://studio.${STUDIOS_DOMAIN}
     depends_on:
       - agent-service
 
@@ -154,7 +151,7 @@ services:
       dockerfile: apps/studio-web/Dockerfile
       args:
         APP_PROFILE: witness
-        NEXT_PUBLIC_AGENT_SERVICE_URL: https://${STUDIOS_HOST}:3001
+        NEXT_PUBLIC_AGENT_SERVICE_URL: https://api.${STUDIOS_DOMAIN}
         NEXT_PUBLIC_AUTH_ENABLED: "false"
         NEXT_PUBLIC_APPLICATION_ID: witness-agent-studio
         NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
@@ -170,7 +167,7 @@ services:
       NODE_ENV: production
       AGENT_SERVICE_URL: http://agent-service:3001
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      NEXTAUTH_URL: https://${STUDIOS_HOST}:3443
+      NEXTAUTH_URL: https://witness.${STUDIOS_DOMAIN}
     depends_on:
       - agent-service
 
@@ -185,7 +182,7 @@ services:
       OAUTH2_PROXY_CLIENT_ID: ${WITNESS_LOGIN_GOOGLE_CLIENT_ID}
       OAUTH2_PROXY_CLIENT_SECRET: ${WITNESS_LOGIN_GOOGLE_CLIENT_SECRET}
       # Must be an authorised redirect URI on the Google login client (Console).
-      OAUTH2_PROXY_REDIRECT_URL: https://${STUDIOS_HOST}:3443/oauth2/callback
+      OAUTH2_PROXY_REDIRECT_URL: https://witness.${STUDIOS_DOMAIN}/oauth2/callback
       OAUTH2_PROXY_UPSTREAMS: http://witness-web:3000
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
       OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
@@ -215,7 +212,7 @@ services:
       WITNESS_TOKEN_ENCRYPTION_KEY: ${WITNESS_TOKEN_ENCRYPTION_KEY}
       # Must be an authorised redirect URI (+ /oauth/google/callback) on the
       # Google connection client (Console).
-      WITNESS_OAUTH_EDGE_URL: https://${STUDIOS_HOST}:8443
+      WITNESS_OAUTH_EDGE_URL: https://connect.${STUDIOS_DOMAIN}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
 
@@ -225,7 +222,7 @@ services:
       dockerfile: apps/studio-web/Dockerfile
       args:
         APP_PROFILE: benchmark
-        NEXT_PUBLIC_AGENT_SERVICE_URL: https://${STUDIOS_HOST}:3001
+        NEXT_PUBLIC_AGENT_SERVICE_URL: https://api.${STUDIOS_DOMAIN}
         NEXT_PUBLIC_AUTH_ENABLED: "false"
         NEXT_PUBLIC_APPLICATION_ID: benchmark-agent-studio
         NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
@@ -238,7 +235,7 @@ services:
       NODE_ENV: production
       AGENT_SERVICE_URL: http://agent-service:3001
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      NEXTAUTH_URL: https://${STUDIOS_HOST}:3543
+      NEXTAUTH_URL: https://invest.${STUDIOS_DOMAIN}
     depends_on:
       - agent-service
 

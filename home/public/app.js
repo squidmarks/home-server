@@ -4,7 +4,7 @@
 // inserted as text.
 const root = document.getElementById("groups");
 // The tailnet FQDN the API reports; port links need it (see card()).
-const config = { fqdn: "", tailnet: "" };
+const config = { fqdn: "", tailnet: "", domain: "" };
 const el = (tag, cls, ...kids) => {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -22,14 +22,20 @@ function remoteHref(s) {
 }
 
 function card(s) {
-  const linked = s.port !== null || s.host !== null;
-  const label = s.host ? el("span", "port", s.host) : linked && s.port !== 443 ? el("span", "port", `:${s.port}`) : null;
+  const named = config.domain && s.sub !== null;
+  const linked = named || s.port !== null || s.host !== null;
+  const shownAs = named ? (s.sub ? `${s.sub}.` : config.domain) : null;
+  const label = named ? el("span", "port", shownAs) : s.host ? el("span", "port", s.host) : linked && s.port !== 443 ? el("span", "port", `:${s.port}`) : null;
   const inner = [
     el("b", "", el("span", `dot ${s.status}`), s.name, label),
     el("span", "desc", s.description),
   ];
   if (!linked) return el("div", "card", ...inner);
   const a = el("a", "card", ...inner);
+  if (named) {
+    a.href = `https://${s.sub ? `${s.sub}.` : ""}${config.domain}${s.path || "/"}`;
+    return a;
+  }
   if (s.host) {
     a.href = remoteHref(s);
     return a;
@@ -59,6 +65,7 @@ async function load() {
     const data = await (await fetch("/api/services")).json();
     config.fqdn = data.fqdn || "";
     config.tailnet = data.tailnet || "";
+    config.domain = data.domain || "";
     document.title = data.title;
     document.getElementById("title").textContent = data.title;
     document.getElementById("checked").textContent = `checked ${new Date(data.checkedAt).toLocaleTimeString()}`;

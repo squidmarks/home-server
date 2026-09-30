@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-time setup for the shared agent-service on the home box. Run on the box:
-#   ANTHROPIC_API_KEY=... OPENAI_API_KEY=... HA_BASE_URL=... HA_TOKEN=... ~/infra/studios/setup-home.sh
+#   STUDIOS_DOMAIN=... ANTHROPIC_API_KEY=... OPENAI_API_KEY=... HA_BASE_URL=... HA_TOKEN=... ~/infra/studios/setup-home.sh
 # Creates the agent_studio platform database and its Mongo user, and writes
 # studios.env (mode 600) with fresh random secrets plus the keys passed in the
 # environment. Pipe the keys in from their source files; never paste them into
@@ -11,7 +11,7 @@ set -euo pipefail
 cd "$ENV_DIR"
 ENV_FILE=studios.env
 [ -f "$ENV_FILE" ] && { echo "$ENV_FILE already exists; leaving it alone."; exit 0; }
-[ -n "$TAILNET_FQDN" ] || { echo "TAILNET_FQDN is not set (see env.sh); refusing to write a broken studio host." >&2; exit 1; }
+[ -n "${STUDIOS_DOMAIN:-}" ] || { echo "STUDIOS_DOMAIN is not set (the studios' domain, e.g. example.com); refusing to write broken studio URLs." >&2; exit 1; }
 
 ROOT_PW=$(grep '^MONGO_ROOT_PASSWORD=' "$MONGO_ENV" | cut -d= -f2)
 DB_PW=$(openssl rand -hex 24)
@@ -22,7 +22,7 @@ docker exec "$MONGO_CONTAINER" mongosh --quiet "mongodb://root:${ROOT_PW}@localh
 " >/dev/null
 
 {
-  echo "STUDIOS_HOST=$TAILNET_FQDN"
+  echo "STUDIOS_DOMAIN=$STUDIOS_DOMAIN"
   echo "STUDIOS_TAILNET_IP=$(tailscale ip -4)"
   echo "DEFAULT_MODEL=${DEFAULT_MODEL:-claude-sonnet-5}"
   echo "STUDIOS_DB_PASSWORD=$DB_PW"
