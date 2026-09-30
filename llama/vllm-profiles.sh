@@ -16,6 +16,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 VLLM_DIR="${VLLM_DIR:-$HOME/radiance-vllm-mxfp4}"
 NAME_FILE="${VLLM_NAME_FILE:-$HOME/.cache/radiance-mxfp4/profile-name}"
 BASE="${VLLM_BASE_URL:-http://127.0.0.1:8080}"
+# The container THIS script starts. Another engine can hold the port.
+VLLM_NAME="${VLLM_CONTAINER:-vllmmxfp4074}"
 
 # Each profile is the environment the launcher needs. SPEC_METHOD picks the
 # drafter, SPEC its depth, and the shape trio decides how much context is
@@ -59,14 +61,30 @@ profile_env() {
 }
 PROFILES="long-dflash short-dflash short-dflash-3 short-dflash-5 short-dflash-9 ctx64k-chunk2560 ctx64k-chunk4096 ctx64k-chunk8192 ctx128k-chunk4096 ctx220k-chunk4096 long-mtp short-mtp"
 
-running() { curl -s -m 3 "$BASE/health" >/dev/null 2>&1 && echo up || echo down; }
+# Up means OUR container is serving, not that something answers on the port.
+# serve-sly.sh took 8080 on 2026-09-30 and this reported "short-dflash (up)" for
+# an engine that had been stopped for hours -- the name file was believed
+# because the health check passed, and the health check passed because a
+# different engine was answering. A benchmark labelled with the wrong engine is
+# exactly what the header of this file says must not happen.
+running() {
+  docker ps -q --filter "name=^${VLLM_NAME}$" 2>/dev/null | grep -q . || { echo down; return; }
+  curl -s -m 3 "$BASE/health" >/dev/null 2>&1 && echo up || echo down
+}
+# The name we last set, but only while the engine it describes is the one up.
+# Empty means "nothing of ours is running", which callers must treat as needing
+# a switch rather than as a match.
+current_name() {
+  [ "$(running)" = up ] || return 0
+  cat "$NAME_FILE" 2>/dev/null
+}
 
 case "${1:-list}" in
   list)
     echo "profiles: $PROFILES"
-    echo "running:  $(cat "$NAME_FILE" 2>/dev/null || echo unknown) ($(running))"
+    _n=$(current_name); echo "running:  ${_n:-unknown} ($(running))"
     ;;
-  label) cat "$NAME_FILE" 2>/dev/null || echo "" ;;
+  label) current_name ;;
   flags) profile_env "${2:?profile}" || { echo "unknown profile: $2" >&2; exit 2; } ;;
   describe)
     # What the server actually answers with, plus the name we last set. The two
@@ -75,7 +93,7 @@ case "${1:-list}" in
 import json,sys
 try: print(",".join(m["id"] for m in json.load(sys.stdin).get("data",[])))
 except Exception: print("")' 2>/dev/null)
-    python3 - "$(cat "$NAME_FILE" 2>/dev/null)" "$served" "$(running)" <<'PY'
+    python3 - "$(current_name)" "$served" "$(running)" <<'PY'
 import json,sys
 name, served, health = (sys.argv[1:4] + ["","",""])[:3]
 print(json.dumps({"engine":"vllm","profile":name or None,
