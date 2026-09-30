@@ -58,34 +58,81 @@
 }
 
 # --- Agent studios: <name>.studio.<domain> (one shared agent-service) -------
-# Their own level, so a shared login cookie can cover .studio.<domain> without
-# reaching the tools above.
+# Their own level, so the shared login cookie covers .studio.<domain> without
+# reaching the tools above. Every studio web app is behind ONE Google login
+# (oauth2-proxy on 127.0.0.1:4180, asked via forward_auth); signing in once
+# covers all of them. The web apps read who is signed in from /oauth2/userinfo.
+
+# A studio web app behind the login. {args[0]} is its upstream.
+(studio) {
+	# Agent webhooks carry the agent's own whsec_ secret, which the
+	# agent-service checks; callers like Home Assistant can't sign in.
+	@webhook {
+		path /agents/*
+		header Authorization "Bearer whsec_*"
+	}
+	@webhook_query {
+		path /agents/*
+		expression {query.token}.startsWith("whsec_")
+	}
+	handle @webhook {
+		reverse_proxy {args[0]}
+	}
+	handle @webhook_query {
+		reverse_proxy {args[0]}
+	}
+
+	# oauth2-proxy's own endpoints: sign-in, callback, userinfo, sign-out.
+	handle /oauth2/* {
+		reverse_proxy 127.0.0.1:4180 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-Uri {uri}
+		}
+	}
+
+	handle {
+		forward_auth 127.0.0.1:4180 {
+			uri /oauth2/auth
+			header_up X-Real-IP {remote_host}
+			@unauthorized status 401
+			handle_response @unauthorized {
+				redir * /oauth2/start?rd={scheme}://{host}{uri}
+			}
+		}
+		reverse_proxy {args[0]}
+	}
+}
+
 *.studio.{$DOMAIN} {
 	tls {
 		dns cloudflare {env.CF_API_TOKEN}
 	}
 
+	@home host home.studio.{$DOMAIN}
+	handle @home {
+		import studio 127.0.0.1:3702
+	}
+	@witness host witness.studio.{$DOMAIN}
+	handle @witness {
+		import studio 127.0.0.1:3703
+	}
+	@invest host invest.studio.{$DOMAIN}
+	handle @invest {
+		import studio 127.0.0.1:3704
+	}
+
+	# The shared agent-service: the studio web apps call it from the browser
+	# (Socket.IO and REST), so it isn't behind the login page; it serves only
+	# the tailnet, and agent webhooks are checked against their own secret.
 	@api host api.studio.{$DOMAIN}
 	handle @api {
 		reverse_proxy 127.0.0.1:3001
 	}
-	@home host home.studio.{$DOMAIN}
-	handle @home {
-		reverse_proxy 127.0.0.1:3702
-	}
-	@witness host witness.studio.{$DOMAIN}
-	handle @witness {
-		# oauth2-proxy (Google login) in front of the Witness web app.
-		reverse_proxy 127.0.0.1:4180
-	}
+	# Witness's Gmail/Drive connection callback: Google redirects the browser
+	# here mid-flow, so it can't sit behind the login either.
 	@connect host connect.studio.{$DOMAIN}
 	handle @connect {
-		# Witness's Gmail/Drive connection callback.
 		reverse_proxy 127.0.0.1:8085
-	}
-	@invest host invest.studio.{$DOMAIN}
-	handle @invest {
-		reverse_proxy 127.0.0.1:3704
 	}
 
 	handle {

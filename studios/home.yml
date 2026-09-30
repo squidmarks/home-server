@@ -11,14 +11,16 @@
 # Studios, each at <name>.<STUDIOS_DOMAIN> (e.g. home.studio.example.com),
 # served by caddy/:
 #   Home Studio        home-agent-studio       home.
-#   Witness            witness-agent-studio    witness. (Google login via oauth2-proxy)
+#   Witness            witness-agent-studio    witness.
 #                                              connect. (Gmail/Drive OAuth callback)
 #   Investment Studio  benchmark-agent-studio  invest.
 #   shared agent-service                       api. (also the panels origin)
 #
+# Every studio web app is behind one Google login (oauth2-proxy, checked by Caddy).
+#
 # Ports, all bound to 127.0.0.1 and reached through Caddy: agent-service 3001,
-# Home Studio 3702, Witness login 4180, Witness OAuth 8085, Investment 3704,
-# MCP server 3002 (public only through the Cloudflare tunnel).
+# Home Studio 3702, Witness 3703, Investment 3704, login 4180, Witness OAuth
+# 8085, MCP server 3002 (public only through the Cloudflare tunnel).
 #
 # Local models come from the inference box's shim (LOCAL_LLM_BASE_URL in
 # studios.env, http://<inference box>:8091/v1). A 503 with retry-after from it
@@ -159,8 +161,9 @@ services:
     image: witness-web:latest
     restart: unless-stopped
     mem_limit: 1g
-    # Only reachable through oauth2-proxy (no published port). The alias keeps
-    # the name the Witness stack has always used for its web app.
+    ports:
+      - "127.0.0.1:3703:3000"
+    # The alias keeps the name the Witness stack has always used for its web app.
     networks:
       default:
         aliases: [studio-web]
@@ -172,6 +175,12 @@ services:
     depends_on:
       - agent-service
 
+  # ONE Google login for every studio. Caddy asks it (forward_auth) before
+  # serving any studio web app, and routes each studio's /oauth2/* here. The
+  # cookie is set for the whole studio domain, so signing in once covers every
+  # studio; the redirect URI follows the host asked about, so each studio's
+  # https://<name>.<STUDIOS_DOMAIN>/oauth2/callback must be authorised on the
+  # Google login client (Console). Who may sign in: oauth2-proxy-emails.txt.
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:latest
     restart: unless-stopped
@@ -182,20 +191,20 @@ services:
       OAUTH2_PROXY_PROVIDER: google
       OAUTH2_PROXY_CLIENT_ID: ${WITNESS_LOGIN_GOOGLE_CLIENT_ID}
       OAUTH2_PROXY_CLIENT_SECRET: ${WITNESS_LOGIN_GOOGLE_CLIENT_SECRET}
-      # Must be an authorised redirect URI on the Google login client (Console).
-      OAUTH2_PROXY_REDIRECT_URL: https://witness.${STUDIOS_DOMAIN}/oauth2/callback
-      OAUTH2_PROXY_UPSTREAMS: http://witness-web:3000
+      # Auth only: Caddy does the proxying to each studio.
+      OAUTH2_PROXY_UPSTREAMS: static://202
       OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
       OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
       OAUTH2_PROXY_COOKIE_SECURE: "true"
-      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_COOKIE_DOMAINS: .${STUDIOS_DOMAIN}
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .${STUDIOS_DOMAIN}
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
       OAUTH2_PROXY_EMAIL_DOMAIN: "*"
       OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: /etc/oauth2-proxy/emails.txt
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
     volumes:
       - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/oauth2-proxy-emails.txt:/etc/oauth2-proxy/emails.txt:ro
-    depends_on:
-      - witness-web
 
   witness-oauth-callback:
     build:
