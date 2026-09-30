@@ -16,6 +16,7 @@ export function adminPage() {
  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
  .up{background:var(--good)} .down{background:var(--bad)} .unknown{background:var(--muted)}
  .name{font-weight:600} .note{color:var(--muted);font-size:13px}
+ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px;font-weight:600}
  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px;margin-top:12px}
  .metric{display:flex;flex-direction:column;gap:1px;min-width:0}
  .mlabel{color:var(--muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
@@ -75,9 +76,11 @@ async function draw(){
       <button class="\${m.resident?'':'primary'}" \${(m.resident||sw||busy||!s.canSwitch||s.inFlight>0)?'disabled':''}
         onclick="loadModel('\${m.id}')">\${m.resident?'Loaded':'Load this'}</button>
     </div></div>\`).join("");
-  const engineNote = Object.entries(s.engines)
-    .map(([id,e]) => esc(e.name) + " " + e.health).join(" · ");
   const notes = [];
+  // Engine health used to be its own card. It is only ever interesting when
+  // something is wrong, so it appears as a warning now and is silent otherwise.
+  const sick = Object.entries(s.engines || {}).filter(([id, e]) => id === s.backend && e.health !== "up");
+  for (const [, e] of sick) notes.push(e.name + " is " + e.health + " — the model it serves will refuse requests.");
   if (!s.canSwitch) notes.push("Switching is not configured on this host (SWITCH_CMD unset).");
   if (s.inFlight > 0) notes.push(s.inFlight + " request(s) in flight — loading is blocked until idle.");
   if (!s.model) notes.push("No model is loaded: requests are refused until one is.");
@@ -116,15 +119,13 @@ async function draw(){
     ? \`<div class="card"><div class="row"><span class="name">Now</span></div><div class="metrics">\${cells}</div></div>\`
     : "";
 
-  app.innerHTML = models + metrics
+  app.innerHTML = metrics
     + (sw ? \`<div class="card"><div class="row"><span class="dot unknown"></span>
         <span class="name">Loading \${esc(s.switching.to)}…</span>
         <span class="note">this takes minutes: vLLM compiles kernels, llama.cpp reloads ~16&nbsp;GB</span></div>
         <pre>\${esc(s.switching.log || "starting…")}</pre></div>\` : "")
-    + \`<div class="card"><div class="row"><span class="name">Engines</span><span class="spacer"></span>
-        <span class="note">\${engineNote}</span></div></div>\`
-    + \`<div class="card"><div class="row"><span class="name">Power</span><span class="spacer"></span>
-        <span class="note">\${s.power.plug ? esc(s.power.plug)+" · idle "+s.power.idleWatts+" W · "+esc(s.power.schedule||"flat rate") : "no meter configured"}</span></div></div>\`
+    + \`<h2>Model</h2>\`
+    + models
     + (notes.length ? \`<div class="card note">\${notes.map(esc).join("<br>")}</div>\` : "");
 }
 async function loadModel(id){
