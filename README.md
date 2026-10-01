@@ -27,7 +27,7 @@ The layout mirrors `~/infra` on each box (`./deploy.sh <host>` copies this repo 
 - `~/infra/` is this repo, deployed.
 - `~/agent-studio/` is the agent-studio repo (synced from the laptop; not a git checkout on the box).
 - Secrets live in gitignored env files next to the agent-studio checkout (`studios.env`, `bench.env`, `benchmark-run.env` on `home`), in `~/infra/.env` (machine-local settings such as `INFERENCE_FQDN`, read by `env.sh`) and in `~/infra/mongo/.env`. They are never committed and no script prints them.
-- On `home`, Mongo's data is on `/data/mongo` (`MONGO_DATA_DIR` in `mongo/.env`), and `mongo/backup.sh` backs up every database in `BACKUP_DBS`.
+- On `home`, Mongo's data is on `/data/mongo` (`MONGO_DATA_DIR` in `mongo/.env`), and `mongo/backup.sh` backs up every database in `BACKUP_DBS` nightly (`agent_studio`, `witness`, `witness_bench_base`). It is the only MongoDB: the inference box's was retired on 2026-10-01 (final dump in `home:~/backups/`).
 - Home Assistant can't resolve tailnet names, but it resolves public DNS, so its webhook calls to agents use the studio's name under the domain (Caddy lets `whsec_` webhook calls past the login).
 
 ## Services and ports
