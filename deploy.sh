@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 HOST="${1:-server}"
-BENCH_HOSTS="${BENCH_HOSTS:-server gpu}"
+BENCH_HOSTS="${BENCH_HOSTS:-home}"
 rsync -a --exclude '.git/' --exclude '*.env' --exclude '.env' --exclude 'node_modules/' \
   --exclude 'mongo/data*/' ./ "$HOST":infra/
 ssh "$HOST" 'chmod +x ~/infra/*.sh ~/infra/*/*.sh'

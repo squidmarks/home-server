@@ -31,7 +31,7 @@ setup() {
       echo "BENCH_SECRETS_KEY=$(openssl rand -base64 32)"
       echo "ANTHROPIC_API_KEY=$(envval ANTHROPIC_API_KEY)"
       echo "OPENAI_API_KEY=$(envval OPENAI_API_KEY)"
-      echo "LOCAL_LLM_BASE_URL=http://172.18.0.1:8090/v1"
+      echo "LOCAL_LLM_BASE_URL=$SHIM_BASE_URL"
     } > "$ENV_FILE"
     chmod 600 "$ENV_FILE"
     echo "wrote $ENV_FILE"

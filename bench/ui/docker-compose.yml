@@ -1,7 +1,7 @@
 # Model Bench review UI (the app itself lives in the agent-studio repo, apps/bench-ui).
 # Reads benchmark results read-only; writes only ratings.json and the job queue in the
-# data dir, and edits cases. Published on 127.0.0.1:3400; the tailnet address is in
-# tailscale/serve.sh.
+# data dir, and edits cases. Published on 127.0.0.1:3400; Caddy (caddy/) serves it
+# as bench.<domain>.
 #   docker compose -f ~/infra/bench/ui/docker-compose.yml up -d
 name: bench-ui
 services:

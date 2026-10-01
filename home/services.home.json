@@ -56,9 +56,8 @@
         {
           "name": "Model Bench",
           "description": "Cases, runs, judging and results for model comparison",
-          "host": "server",
-          "port": 3400,
-          "check": "https://server.{tailnet}:3400/api/models",
+          "port": null,
+          "check": "http://127.0.0.1:3400/api/models",
           "sub": "bench"
         }
       ]

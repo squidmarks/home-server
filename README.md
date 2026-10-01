@@ -2,8 +2,8 @@
 
 Everything that runs my two home machines, reachable over Tailscale, and is specific to them: the services, how they are published, and how the model and agent benchmark is orchestrated. The application code lives elsewhere: this repo deploys the [agent-studio](../agent-studio) code, it does not contain it.
 
-- **`home`** (the NUC, `ssh home`): the agent studios (one shared agent-service), Home Assistant (a VM), the tailnet home page, a MongoDB for the studios, Mongoku, and the monitoring stack (Prometheus and Grafana, watching both boxes).
-- **`server`** (the GPU box, `ssh server`): inference (the engine, the `llm-shim` router and its config page), host and container exporters for `home`'s Prometheus, and, until the shim can switch profiles remotely, the bench and its MongoDB.
+- **`home`** (the NUC, `ssh home`): the agent studios (one shared agent-service), Home Assistant (a VM), the tailnet home page, a MongoDB for the studios and the bench, Mongoku, the monitoring stack (Prometheus and Grafana, watching both boxes), and the model bench (UI, job worker, throwaway studios per case).
+- **`server`** (the GPU box, `ssh server`): inference (the engine, the `llm-shim` router and its config page), and host and container exporters for `home`'s Prometheus. The bench reaches it only through the shim (`/v1`, `/admin/status`, `/admin/profile`); `probe` measurements, which need the GPU itself, still run here (`bench/probe-run.sh`).
 
 The layout mirrors `~/infra` on each box (`./deploy.sh <host>` copies this repo there). The tailnet name is never committed: each box sets `TAILNET_FQDN` in the environment or a gitignored `.env`.
 
@@ -14,7 +14,7 @@ The layout mirrors `~/infra` on each box (`./deploy.sh <host>` copies this repo 
 | `mongo/` | The shared MongoDB (compose, and `backup.sh`, a daily verified dump run by cron at 03:15). Also see the file-descriptor note in the compose file. |
 | `mongoku/` | A read-only MongoDB browser, connecting as a `readAnyDatabase` user. |
 | `studios/` | Compose files and setup scripts for the agent studios. On `home`: `home.yml` (one shared agent-service for every studio, plus a web container per studio), `setup-home.sh`, and `home-deployments/` (per-studio URL templates, rendered by `render-home-deployments.sh`). On `server`, until they move: `server.yml` (Witness), `investment.yml` (the Investment Studio workbench), `investment-run.yml` (the throwaway studio the development benchmark starts per case). |
-| `bench/` | Orchestration for the benchmark: start a clean studio per case, run the runner, archive the run's database, save results; `inspect.sh` loads a run into the workbench. Also the job worker (`bench-worker.service`) and the Model Bench UI compose. The benchmark code itself is in agent-studio (`scripts/bench`, `apps/bench-ui`). |
+| `bench/` | Orchestration for the benchmark, on `home`: start a clean studio per case, run the runner, archive the run's database, save results. `shim.py` reads and switches the inference engine's profile through the shim; `mongo-users.sh` creates the bench's database users. Also the job worker (`bench-worker.service`) and the Model Bench UI compose. `inspect.sh` still targets the old Investment workbench on `server` and has not moved. The benchmark code itself is in agent-studio (`scripts/bench`, `apps/bench-ui`). |
 | `bench/probe-run.sh` | Runs one existing measurement tool (`llama-bench` or `speed-bench`) under a named profile and records its output verbatim in `probes/`. Queued as a `probe` job so it holds the same lock as a run; never a score. |
 | `llama/profiles.sh` | The local model server as named profiles (which model file, speculative decoding, KV cache). `set <name>` rewrites the systemd unit and restarts; the name is what a benchmark run records as its server setup. |
 | `tailscale/serve.sh` | The `tailscale serve` mapping of every service to a tailnet port, one list per box. |
@@ -26,13 +26,13 @@ The layout mirrors `~/infra` on each box (`./deploy.sh <host>` copies this repo 
 
 - `~/infra/` is this repo, deployed.
 - `~/agent-studio/` is the agent-studio repo (synced from the laptop; not a git checkout on the box).
-- Secrets live in gitignored env files next to the agent-studio checkout (`studios.env` on `home`; `benchmark.env`, `benchmark-run.env`, `bench.env`, `docker-compose.server.env` on `server`) and in `~/infra/mongo/.env`. They are never committed and no script prints them.
+- Secrets live in gitignored env files next to the agent-studio checkout (`studios.env`, `bench.env`, `benchmark-run.env` on `home`), in `~/infra/.env` (machine-local settings such as `INFERENCE_FQDN`, read by `env.sh`) and in `~/infra/mongo/.env`. They are never committed and no script prints them.
 - On `home`, Mongo's data is on `/data/mongo` (`MONGO_DATA_DIR` in `mongo/.env`), and `mongo/backup.sh` backs up every database in `BACKUP_DBS`.
 - Home Assistant can't resolve tailnet names, but it resolves public DNS, so its webhook calls to agents use the studio's name under the domain (Caddy lets `whsec_` webhook calls past the login).
 
 ## Services and ports
 
-Every service binds `127.0.0.1`. On `home`, Caddy (`caddy/`) publishes each one by name under the domain, on the tailnet IP only: the home page at the apex, studios at `<name>.studio.`, and `ha.`, `llm.`, `bench.`, `grafana.`, `mongo.`. On `server`, `tailscale serve` publishes the inference config page at `/llm/admin/`, Model Bench `:3400`, and the node and cAdvisor exporters `:9100`/`:9180` (see `tailscale/serve.sh`). The inference shim itself listens on `:8091` for the whole tailnet (studios reach it there).
+Every service binds `127.0.0.1`. On `home`, Caddy (`caddy/`) publishes each one by name under the domain, on the tailnet IP only: the home page at the apex, studios at `<name>.studio.`, and `ha.`, `llm.`, `bench.`, `grafana.`, `mongo.`. On `server`, `tailscale serve` publishes the inference config page at `/llm/admin/` and the node and cAdvisor exporters `:9100`/`:9180` (see `tailscale/serve.sh`). The inference shim itself listens on `:8091` for the whole tailnet (studios reach it there).
 
 ## Common tasks
 
@@ -57,7 +57,7 @@ ssh server '~/infra/bench/inspect.sh unload'                      # puts the wor
 
 The run used the same dev user and customer as the workbench, so its agents, sessions and panels appear in the normal pages. Loaded **schedules are deleted** so a restored "run daily" agent can never trade the paper account. Anything you do while a run is loaded is discarded on unload. The archives include the studio's seeded connection settings (for example the web-search connection), so treat them as private; they live under the gitignored results folder and are never committed.
 
-Running the benchmark: use **New run** in the Model Bench UI, or on the box
+Running the benchmark: use **New run** in the Model Bench UI, or on `home`
 `BENCH_SIM_MODEL=claude-haiku-4-5 BENCH_JUDGE_MODEL=claude-sonnet-5 ~/infra/bench/run_dev_all.sh claude-sonnet-5`.
 
 ## Setting up from scratch
@@ -66,7 +66,7 @@ Running the benchmark: use **New run** in the Model Bench UI, or on the box
 2. `mongo/` first (create `mongo/.env` with `MONGO_ROOT_PASSWORD`), then everything else.
 3. `studios/setup-investment.sh`, then `studios/setup-investment-run.sh`, then fill in the Alpaca and Tavily keys in `benchmark.env` yourself.
 4. `tailscale/serve.sh`.
-5. `deploy.sh` installs and starts the bench worker.
+5. For the bench (on `home`): `~/infra/.env` with `INFERENCE_FQDN`, the bench env files, `bench/mongo-users.sh`, the bench UI compose (`bench/ui`), then `deploy.sh home` installs and starts the worker.
 
 ## Notes
 

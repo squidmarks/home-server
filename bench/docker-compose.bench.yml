@@ -8,7 +8,9 @@
 # It runs the same image as production, so it always benchmarks the deployed code.
 services:
   agent-service-bench:
-    image: agent-studio-agent-service:latest
+    # The shared agent-service image (studios/home.yml), so the bench always
+    # measures the code the studios run. It carries every engine.
+    image: ${BENCH_IMAGE:-studios-agent-service:latest}
     container_name: agent-service-bench
     restart: "no"
     mem_limit: 2g

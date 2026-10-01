@@ -31,7 +31,13 @@ run_job() {
   f="$claim"
   setstate "$id" running "{\"startedAt\":\"$(now)\"}"
   local rc=0
-  if [ "$type" = "probe" ]; then
+  if [ "$type" = "probe" ] && [ ! -x "$HERE/../llama/profiles.sh" -o -n "$INFERENCE_FQDN" ]; then
+    # llama-bench loads its own copy of the model onto the card and speed-bench
+    # times llama-server from beside it: a probe measures the GPU box itself, so
+    # it can only run there (bench/probe-run.sh on the inference box).
+    echo "probe jobs measure the GPU directly and run on the inference box, not here: run bench/probe-run.sh there" >"$log"
+    rc=1
+  elif [ "$type" = "probe" ]; then
     # A measurement. The worker runs it for the same reason it runs everything
     # else: it holds the job, so nothing else can be touching the model server.
     # That exclusivity is the whole point -- a nine-profile sweep run by hand on
@@ -74,11 +80,10 @@ PY
       # The worker is the only thing that may restart the model server: it holds the
       # job, so nothing else can be running a case. Conditions arrive grouped by
       # profile, so this reloads the model as rarely as the job allows.
-      # Which engine's profiles these are. The model decides: the mxfp4
-      # checkpoint is vLLM's, everything else llama.cpp's. Both scripts take the
-      # same verbs, and both are read back by bench-dev.sh before a case runs.
-      local switcher="$HERE/../llama/profiles.sh"
-      case "$(field "$f" models)" in *mxfp4*) switcher="$HERE/../llama/vllm-profiles.sh" ;; esac
+      # Through the shim, which applies the profile to whichever engine is
+      # running and reports what that engine observes (not a name file), so
+      # this works from any box. bench-dev.sh reads it back before every case.
+      local switcher="$HERE/shim.py"
       if [ -n "$profile" ] && [ "$profile" != "$("$switcher" label 2>/dev/null)" ]; then
         echo ">>> switching the model server to profile $profile" >>"$log"
         if ! "$switcher" set "$profile" >>"$log" 2>&1; then

@@ -10,7 +10,9 @@ name: benchmark-run
 
 services:
   agent-service-run:
-    image: benchmark-studio-agent-service:latest
+    # The shared agent-service image (studios/home.yml): it carries the
+    # benchmark engine, and the bench measures the code the studios run.
+    image: ${BENCH_IMAGE:-studios-agent-service:latest}
     container_name: agent-service-run
     restart: "no"
     mem_limit: 2g
@@ -29,7 +31,7 @@ services:
       # The shim (8091), not llama.cpp direct (8090): one metrics shape for
       # either engine, per-request energy, and a clear refusal when the model
       # asked for is not the one loaded on the card.
-      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://172.18.0.1:8091/v1}
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:?set by bench-dev.sh from env.sh SHIM_BASE_URL}
       # Per-request thinking settings for the local model (JSON), set per run by bench-dev.sh.
       LOCAL_LLM_CHAT_TEMPLATE_KWARGS: ${LOCAL_LLM_CHAT_TEMPLATE_KWARGS:-}
       # Pins the clock the studio stamps into every turn. Empty in production,

@@ -1,6 +1,7 @@
 [Unit]
 Description=Model bench job worker
-After=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
 [Service]
 User=geoff
 WorkingDirectory=/home/geoff/infra/bench

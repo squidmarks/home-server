@@ -77,7 +77,7 @@ run_one() {
   # reports its own timings in the body, vLLM reports only engine-wide counters,
   # and the studio should not have to know the difference. It also measures what
   # the call drew at the wall, which no engine can.
-  export LOCAL_LLM_BASE_URL="${SHIM_BASE_URL:-http://172.18.0.1:8091/v1}"
+  export LOCAL_LLM_BASE_URL="$SHIM_BASE_URL"
 
   # Whichever local model a case asks for, the card must actually be holding it.
   # One card holds one model and loading another takes minutes, so a run started
@@ -86,7 +86,7 @@ run_one() {
   # answers with what the ENGINE reports, so a stale name file cannot satisfy
   # this. Hosted models never reach here.
   case "$model" in local-*)
-    shim_admin="${SHIM_ADMIN_URL:-http://172.18.0.1:8091}"
+    shim_admin="$SHIM_ADMIN_URL"
     shim_status=$(curl -s -m 8 "$shim_admin/admin/status" 2>/dev/null || echo "")
     shim_model=$(printf '%s' "$shim_status" | python3 -c 'import json,sys
 try: print(json.load(sys.stdin).get("model") or "")
@@ -119,59 +119,28 @@ except Exception: print(0)' 2>/dev/null || echo 0)
     fi
   ;; esac
 
+  # What served the case, as the shim observes it: the running engine, its
+  # profile and its health. One witness for every local model -- the profile
+  # scripts' name files were consulted before, and once said vLLM was down while
+  # it was serving. Hosted models are not served from the inference box, so
+  # stamping its state on them would be a lie.
   local server_json="" observed=""
-  case "$model" in
-    # vLLM serves this one, not llama.cpp, so llama-server's profile says nothing
-    # about it. Stamping it anyway would have the result claim a configuration
-    # that had no part in producing it -- a label, not an identity. Record what
-    # actually served it instead.
-    *mxfp4*)
-      server_json=$("$HERE/../llama/vllm-profiles.sh" describe 2>/dev/null || echo "")
-      observed=$(printf '%s' "$server_json" | python3 -c 'import json,sys
+  case "$model" in local-*)
+    server_json=$("$HERE/shim.py" describe 2>/dev/null || echo "")
+    observed=$(printf '%s' "$server_json" | python3 -c 'import json,sys
 try: print(json.load(sys.stdin).get("profile","") or "")
 except Exception: print("")' 2>/dev/null || echo "")
-      # Health first: a name file can be stale or wrong, but an engine that does
-      # not answer cannot have produced anything. Checking the label alone let a
-      # whole arm run against a dead server while every check passed.
-      if [ "$(printf '%s' "$server_json" | python3 -c 'import json,sys
+    # Health first: an engine that does not answer cannot have produced anything.
+    if [ "$(printf '%s' "$server_json" | python3 -c 'import json,sys
 try: print(json.load(sys.stdin).get("health",""))
 except Exception: print("")' 2>/dev/null)" != "up" ]; then
-        record_failure "$run_id" "$label" "$id" "vLLM is not answering; nothing can have served this case"
-        return 0
-      fi
-      if [ -n "${BENCH_EXPECT_PROFILE:-}" ] && [ "$observed" != "$BENCH_EXPECT_PROFILE" ]; then
-        record_failure "$run_id" "$label" "$id" "vLLM is on profile ${observed:-unknown}, but this condition asked for $BENCH_EXPECT_PROFILE"
-        return 0
-      fi
-    ;;
-  esac
-  case "$model" in local-qwen3-32b|local-qwen3.8-27b)
-    server_json=$("$HERE/../llama/profiles.sh" describe 2>/dev/null || echo "")
-    observed=$(printf '%s' "$server_json" | python3 -c 'import json,sys
-try: print(json.load(sys.stdin).get("profile",""))
-except Exception: print("")' 2>/dev/null || echo "")
-    if [ -n "${BENCH_EXPECT_PROFILE:-}" ] && [ "$observed" != "$BENCH_EXPECT_PROFILE" ]; then
-      record_failure "$run_id" "$label" "$id" "the model server is on profile ${observed:-unknown}, but this condition asked for $BENCH_EXPECT_PROFILE"
+      record_failure "$run_id" "$label" "$id" "the inference engine is not answering; nothing can have served this case"
       return 0
     fi
-  ;;
-  # Any other local model: no llama.cpp profile and no MXFP4 launcher speaks for
-  # it, so what served it is whatever the shim says is resident. Recorded rather
-  # than left blank -- a result with no server at all cannot be compared later.
-  #
-  # Only when nothing has spoken for it yet. The MXFP4 branch above matches
-  # local-qwen3.8-27b-mxfp4, which also matches local-* here: overwriting would
-  # replace that model's PROFILE (short-dflash, ctx64k-chunk4096 ...) with a bare
-  # engine name, and the configuration sweeps are entirely about which profile
-  # produced which number.
-  local-*)
-    [ -n "$server_json" ] && server_json="$server_json" || \
-    server_json=$(printf '%s' "$shim_status" | python3 -c 'import json,sys
-try:
-  d = json.load(sys.stdin)
-  print(json.dumps({"engine": d.get("backend"), "source": "shim",
-                    "model": d.get("model"), "health": "up"}))
-except Exception: print("")' 2>/dev/null || echo "")
+    if [ -n "${BENCH_EXPECT_PROFILE:-}" ] && [ "$observed" != "$BENCH_EXPECT_PROFILE" ]; then
+      record_failure "$run_id" "$label" "$id" "the engine is on profile ${observed:-unknown}, but this condition asked for $BENCH_EXPECT_PROFILE"
+      return 0
+    fi
   ;; esac
 
   if ! reset_db; then record_failure "$run_id" "$label" "$id" "could not reset the benchmark database"; return 0; fi
