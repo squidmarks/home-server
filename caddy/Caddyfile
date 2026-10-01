@@ -121,10 +121,6 @@
 	handle @witness {
 		import studio 127.0.0.1:3703
 	}
-	@invest host invest.studio.{$DOMAIN}
-	handle @invest {
-		import studio 127.0.0.1:3704
-	}
 
 	# The shared agent-service: the studio web apps call it from the browser
 	# (Socket.IO and REST), so it isn't behind the login page; it serves only

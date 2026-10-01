@@ -17,13 +17,6 @@
           "port": 3443,
           "check": "http://127.0.0.1:4180/ping",
           "sub": "witness.studio"
-        },
-        {
-          "name": "Investment Studio",
-          "description": "Build and run investment agents on a paper account",
-          "port": 3543,
-          "check": "http://127.0.0.1:3704/",
-          "sub": "invest.studio"
         }
       ]
     },

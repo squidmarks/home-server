@@ -13,13 +13,12 @@
 #   Home Studio        home-agent-studio       home.
 #   Witness            witness-agent-studio    witness.
 #                                              connect. (Gmail/Drive OAuth callback)
-#   Investment Studio  benchmark-agent-studio  invest.
 #   shared agent-service                       api. (also the panels origin)
 #
 # Every studio web app is behind one Google login (oauth2-proxy, checked by Caddy).
 #
 # Ports, all bound to 127.0.0.1 and reached through Caddy: agent-service 3001,
-# Home Studio 3702, Witness 3703, Investment 3704, login 4180, Witness OAuth
+# Home Studio 3702, Witness 3703, login 4180, Witness OAuth
 # 8085, MCP server 3002 (public only through the Cloudflare tunnel).
 #
 # Local models come from the inference box's shim (LOCAL_LLM_BASE_URL in
@@ -48,7 +47,9 @@ services:
       NODE_ENV: production
       AGENT_SERVICE_PORT: "3001"
       LOG_LEVEL: info
-      PROFILES: "@agent-studio/home-engine,@agent-studio/witness-engine,@agent-studio/benchmark-engine"
+      # The Investment Studio (benchmark-engine) is not here: it exists only for the
+      # model bench, which starts its own throwaway copy per case (bench/, ADR-0020).
+      PROFILES: "@agent-studio/home-engine,@agent-studio/witness-engine"
       DEPLOYMENTS_DIR: /deployments
       DEFAULT_MODEL: ${DEFAULT_MODEL:-claude-sonnet-5}
       ROUTER_MODEL: ${DEFAULT_MODEL:-claude-sonnet-5}
@@ -97,28 +98,8 @@ services:
       POSTMARK_API_KEY: ${POSTMARK_API_KEY}
       POSTMARK_FROM_EMAIL: ${POSTMARK_FROM_EMAIL}
       POSTMARK_FROM_NAME: ${POSTMARK_FROM_NAME}
-
-      # --- Investment Studio engine (benchmark-engine) --------------------
-      BENCHMARK_REQUIRE_AUTH: "false"
-      BENCHMARK_ADMIN_EMAILS: ${BENCHMARK_ADMIN_EMAILS:-}
-      # Alpaca PAPER only. The tools refuse every other host, whatever these say.
-      ALPACA_API_KEY: ${ALPACA_API_KEY}
-      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY}
-      ALPACA_MAX_ORDER_NOTIONAL_USD: ${ALPACA_MAX_ORDER_NOTIONAL_USD:-500}
-      ALPACA_MAX_ORDERS_PER_DAY: ${ALPACA_MAX_ORDERS_PER_DAY:-20}
-      BENCHMARK_CONTEXT_DIR: /guidance
-      ALPACA_KILL_SWITCH: /state/KILL
-      ALPACA_FAULTS_FILE: /state/faults.json
-      # Internet research (Tavily), seeded as an MCP server for the Investment
-      # Studio; the key is read from TAVILY_API_KEY, never written here.
-      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
-      MCP_SERVERS: '[{"applicationId":"benchmark-agent-studio","name":"tavily","endpoint":"https://mcp.tavily.com/mcp/","authType":"bearer","authValueEnvVar":"TAVILY_API_KEY"}]'
     volumes:
       - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/home-deployments:/deployments:ro
-      # Investment Studio: its router guidance (read from the checkout, so tuning
-      # is an edit plus a restart), and its kill switch / scripted faults.
-      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/profiles/benchmark/engine/src/context:/guidance:ro
-      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/benchmark-state:/state
 
   home-studio-web:
     build:
@@ -233,37 +214,6 @@ services:
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
 
-  investment-web:
-    build:
-      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
-      dockerfile: apps/studio-web/Dockerfile
-      args:
-        APP_PROFILE: benchmark
-        NEXT_PUBLIC_AGENT_SERVICE_URL: https://api.${STUDIOS_DOMAIN}
-        NEXT_PUBLIC_AUTH_ENABLED: "false"
-        NEXT_PUBLIC_APPLICATION_ID: benchmark-agent-studio
-        # The public MCP address shown for this studio's MCP servers (the tunnel's
-        # hostname), e.g. https://mcp.example.com -> <it>/mcp/servers/<id>.
-        NEXT_PUBLIC_MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
-        NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
-    image: investment-web:latest
-    restart: unless-stopped
-    mem_limit: 1g
-    ports:
-      - "127.0.0.1:3704:3000"
-    environment:
-      NODE_ENV: production
-      AGENT_SERVICE_URL: http://agent-service:3001
-      # Caddy's forward_auth passes oauth2-proxy's verified email here (and strips any
-      # client-sent copy), so server-side routes like /panel/<id> know the viewer.
-      AUTH_PROXY_EMAIL_HEADER: X-Auth-Request-Email
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      NEXTAUTH_URL: https://invest.${STUDIOS_DOMAIN}
-    depends_on:
-      - agent-service
-
-  # The studios' MCP server surface (ADR-0005), reached from outside through
-  # the Cloudflare tunnel.
   mcp-server:
     build:
       context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}

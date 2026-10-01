@@ -15,11 +15,10 @@
 # ANTHROPIC_WORKSPACE_ID (wrkspc_..., not a secret) is needed only for Anthropic keys that are not
 # scoped to a workspace; it is sent as a header with every request.
 #
-# The production Witness env files (docker-compose.server.env, docker-compose.vps.env) are left
-# alone unless --include-production is given. --restart recreates the services that read the
-# keys at startup (the Investment workbench; also the production Witness agent-service with
-# --include-production; a few seconds of downtime each). Without it the script prints the
-# commands. The benchmark's throwaway studio picks the keys up on its next case.
+# The production env file (studios.env, read by the shared studios agent-service) is left alone
+# unless --include-production is given. --restart then recreates that agent-service, which reads
+# the keys at startup (a few seconds of downtime). Without it the script prints the command. The
+# bench env files are always updated; its throwaway studios pick the keys up on their next case.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 . "$HERE/../env.sh"
@@ -38,8 +37,8 @@ files=$(grep -lE '^(ANTHROPIC|OPENAI)_API_KEY=' "$ENV_DIR"/*.env 2>/dev/null || 
 # The production Witness env files are left alone unless asked: its image may predate a key type
 # (for example one that needs ANTHROPIC_WORKSPACE_ID), and a bad key there breaks a live service.
 if [ "$include_prod" != 1 ]; then
-  skipped=$(printf '%s\n' "$files" | grep -E '/docker-compose\.(server|vps)\.env$' || true)
-  files=$(printf '%s\n' "$files" | grep -vE '/docker-compose\.(server|vps)\.env$' || true)
+  skipped=$(printf '%s\n' "$files" | grep -E '/studios\.env$' || true)
+  files=$(printf '%s\n' "$files" | grep -vE '/studios\.env$' || true)
 fi
 # Never rewrite the file the new keys were read from.
 [ -z "$from_file" ] || files=$(printf '%s\n' "$files" | grep -vxF "$(cd "$(dirname "$from_file")" && pwd)/$(basename "$from_file")" || true)
@@ -143,14 +142,14 @@ PY
 done
 unset ak ok
 
-recreate_workbench='(cd '"$HERE"'/.. && . ./env.sh && docker compose -f studios/investment.yml --env-file "$ENV_DIR/benchmark.env" up -d agent-service)'
-recreate_witness='(cd '"$HERE"'/.. && . ./env.sh && docker compose -f studios/server.yml --env-file "$ENV_DIR/docker-compose.server.env" up -d agent-service)'
-if [ "$restart" = 1 ]; then
-  eval "$recreate_workbench" >/dev/null 2>&1 && echo "recreated the Investment workbench agent-service"
-  if [ "$include_prod" = 1 ]; then eval "$recreate_witness" >/dev/null 2>&1 && echo "recreated the Witness agent-service"; fi
-else
-  echo; echo "Services that read the keys at startup keep the old ones until recreated:"
-  echo "  workbench: $recreate_workbench"
-  [ "$include_prod" != 1 ] || echo "  witness:   $recreate_witness"
-  echo "(or run this script with --restart). The benchmark's next case uses the new keys automatically."
+recreate_studios='(cd "$ENV_DIR" && docker compose -p studios -f '"$HERE"'/home.yml --env-file studios.env up -d agent-service)'
+if [ "$include_prod" = 1 ]; then
+  if [ "$restart" = 1 ]; then
+    eval "$recreate_studios" >/dev/null 2>&1 && echo "recreated the studios agent-service"
+  else
+    echo; echo "The studios agent-service keeps the old keys until recreated:"
+    echo "  $recreate_studios"
+    echo "(or run this script with --restart)."
+  fi
 fi
+echo "The bench's next case uses the new keys automatically."
