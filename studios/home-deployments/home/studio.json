@@ -1,0 +1,14 @@
+{
+  "mcpTemplates": [
+    {
+      "id": "tavily",
+      "name": "Tavily web search",
+      "description": "Search the web and read pages, for agents that need current information. Needs your own Tavily API key.",
+      "endpoint": "https://mcp.tavily.com/mcp",
+      "authType": "bearer",
+      "credentialLabel": "Tavily API key",
+      "credentialHelpUrl": "https://app.tavily.com",
+      "toolFilter": ["tavily_search", "tavily_extract"]
+    }
+  ]
+}

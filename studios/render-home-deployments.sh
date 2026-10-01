@@ -15,4 +15,9 @@ for t in "$SRC"/*/deployment.json; do
   mkdir -p "$DEST/$name"
   sed "s|{domain}|$DOMAIN|g" "$t" > "$DEST/$name/deployment.json"
   echo "rendered $DEST/$name/deployment.json"
+  # studio.json (the studio's definition: MCP templates, ...) is optional.
+  if [ -f "$(dirname "$t")/studio.json" ]; then
+    sed "s|{domain}|$DOMAIN|g" "$(dirname "$t")/studio.json" > "$DEST/$name/studio.json"
+    echo "rendered $DEST/$name/studio.json"
+  fi
 done
