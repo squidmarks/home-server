@@ -58,8 +58,10 @@ run_job() {
     # same "now" and the only thing that differs is what the job is varying.
     export RUNTIME_CLOCK_ISO="${RUNTIME_CLOCK_ISO:-$(now)}"
     echo ">>> runtime clock pinned to $RUNTIME_CLOCK_ISO" >>"$log"
+    # The bench studio the job targets (ADR-0020); older jobs only say `suite`.
+    local studio; studio=$(field "$f" studio); [ -n "$studio" ] || studio=$(field "$f" suite)
     local runner=./run_all.sh
-    [ "$(field "$f" suite)" = "investment" ] && runner=./run_dev_all.sh
+    [ "$studio" = "investment" ] && runner=./run_dev_all.sh
     # One pass of the cases per inference condition (a job without any is one default pass).
     local conds; conds=$(python3 - "$f" <<'PY'
 import json,sys
@@ -92,7 +94,7 @@ PY
           continue
         fi
       fi
-      BENCH_RUN_ID=$(field "$f" run) BENCH_CASES=$(field "$f" cases) \
+      BENCH_STUDIO="$studio" BENCH_RUN_ID=$(field "$f" run) BENCH_CASES=$(field "$f" cases) \
       BENCH_SIM_MODEL=$(field "$f" simulator) BENCH_JUDGE_MODEL=$(field "$f" judge) \
       BENCH_LABEL_SUFFIX="$suffix" BENCH_KWARGS="$kwargs" BENCH_INFERENCE_JSON="$info" \
       BENCH_EXPECT_PROFILE="$profile" BENCH_REPLAY_FROM="$(field "$f" replayFrom)" \

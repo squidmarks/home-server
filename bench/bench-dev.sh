@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Development benchmark for the Investment Studio. Run on the box.
-#   ./bench-dev.sh run <model> [case ...]   fresh studio + empty database per case
+# Development benchmark against a bench studio (ADR-0020; BENCH_STUDIO, default
+# investment). Run on the bench box.
+#   ./bench-dev.sh run <model> [case ...]
 #
-# For every case: drop the benchmark_run database, start a new studio agent-service
-# on <model>, run the case (simulated user, rules, judge; the runner also resets the
-# paper account), save the results and the service log, stop the studio.
+# Starts the studio's runtime once for <model> (and the current inference
+# condition), snapshots its blank database as the baseline, then for every case:
+# reset to the baseline, run the case (simulated user, rules, judge; the runner
+# also resets the paper account), save the results, the case's part of the
+# service log and the case's database. Stops the runtime at the end.
 # Results land in results/<runId>/<label>/<case>.json, where <label> is the model, plus
 # BENCH_LABEL_SUFFIX when it is run under non-default inference settings:
 #   BENCH_LABEL_SUFFIX=effort-low BENCH_KWARGS='{"reasoning_effort":"low"}' \
@@ -13,36 +16,95 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 . "$HERE/../env.sh"
 cd "$BENCH_DIR"
-ENV_FILE=$ENV_DIR/benchmark-run.env
-COMPOSE=(docker compose -p benchmark-run --env-file "$ENV_FILE" -f "$STUDIOS_DIR/investment-run.yml")
+# The bench studio this run drives (ADR-0020): its definition, in the agent-studio
+# checkout, says how its runtime starts, which database it owns, what is disabled
+# and which outside world gets reset. Only `investment` has one so far.
+STUDIO="${BENCH_STUDIO:-investment}"
+DEF="$BENCH_DIR/studios/$STUDIO.json"
+[ -f "$DEF" ] || { echo "no bench studio definition: $DEF" >&2; exit 2; }
+def() { python3 - "$DEF" "$1" <<'PY'
+import json, sys
+v = json.load(open(sys.argv[1]))
+for k in sys.argv[2].split("."):
+    v = v[k]
+print(",".join(v) if isinstance(v, list) else v)
+PY
+}
+ENV_FILE=$ENV_DIR/$(def runtime.envFile)
+COMPOSE=(docker compose -p "$(def runtime.project)" --env-file "$ENV_FILE" -f "$HERE/../$(def runtime.compose)")
+CONTAINER=$(def runtime.container)
+PORT=$(def runtime.port)
+DB=$(def runtime.database)
+# Exported: every compose call (up and down) interpolates the whole file.
+export DISABLED_TOOLS; DISABLED_TOOLS=$(def sandbox.disabledTools)
 MONGO_ROOT_PW=$(grep '^MONGO_ROOT_PASSWORD=' "$MONGO_ENV" | cut -d= -f2)
 MONGO_URI_ROOT="mongodb://root:${MONGO_ROOT_PW}@localhost:27017/?authSource=admin"
 GUIDANCE_DIR=$AGENT_STUDIO_DIR/profiles/benchmark/engine/src/context
+BASELINE_DIR="$ENV_DIR/bench-baselines"
+BASELINE="$BASELINE_DIR/$STUDIO.archive.gz"
+RUNTIME_JSON=""
+# Local models through the shim on the inference box (env.sh). The runtime reads
+# it at startup, so it must be set before runtime_up, not per case.
+export LOCAL_LLM_BASE_URL="$SHIM_BASE_URL"
 
-reset_db() {
-  docker exec "$MONGO_CONTAINER" mongosh --quiet "$MONGO_URI_ROOT" --eval 'db.getSiblingDB("benchmark_run").dropDatabase()' >/dev/null
-  mkdir -p "$RUN_STATE_DIR" && rm -f "$RUN_STATE_DIR/KILL" "$RUN_STATE_DIR/faults.json"
-}
+mongo() { docker exec "$MONGO_CONTAINER" mongosh --quiet "$MONGO_URI_ROOT" --eval "$1" >/dev/null; }
+clear_state() { mkdir -p "$RUN_STATE_DIR" && rm -f "$RUN_STATE_DIR/KILL" "$RUN_STATE_DIR/faults.json"; }
 
-up() {
-  BENCH_MODEL="$1" LOCAL_LLM_CHAT_TEMPLATE_KWARGS="${BENCH_KWARGS:-}" \
-  RUNTIME_CLOCK_ISO="${RUNTIME_CLOCK_ISO:-}" "${COMPOSE[@]}" up -d --force-recreate >/dev/null 2>&1
+# Start the studio's runtime for one (model, condition) group, from an empty
+# database, then snapshot what startup left there (seeded connections, indexes):
+# that snapshot is the "blank" baseline every case in the group is reset to.
+# The contestant is the router AND the default model, so agents it builds are
+# tested on it too.
+runtime_up() {
+  local model="$1"
+  mongo "db.getSiblingDB(\"$DB\").dropDatabase()"
+  clear_state
+  mkdir -p "$BASELINE_DIR"
+  BENCH_MODEL="$model" LOCAL_LLM_CHAT_TEMPLATE_KWARGS="${BENCH_KWARGS:-}" \
+  RUNTIME_CLOCK_ISO="${RUNTIME_CLOCK_ISO:-}" \
+    "${COMPOSE[@]}" up -d --force-recreate >/dev/null 2>"$BASELINE_DIR/.compose-err" ||
+    { echo "the $STUDIO runtime could not be started:" >&2; cat "$BASELINE_DIR/.compose-err" >&2; return 1; }
+  local ok=""
   for _ in $(seq 1 60); do
-    curl -fs http://127.0.0.1:3511/health >/dev/null 2>&1 && { echo "studio up (router model $1)"; return; }
+    curl -fs "http://127.0.0.1:$PORT/health" >/dev/null 2>&1 && { ok=1; break; }
     sleep 2
   done
-  echo "studio failed to start" >&2
-  docker logs --tail 30 agent-service-run >&2 || true
-  return 1
+  if [ -z "$ok" ]; then
+    echo "the $STUDIO runtime failed to start" >&2
+    docker logs --tail 30 "$CONTAINER" >&2 || true
+    return 1
+  fi
+  sleep 5   # let startup finish seeding before the snapshot
+  mkdir -p "$BASELINE_DIR"
+  docker exec "$MONGO_CONTAINER" mongodump --uri="$MONGO_URI_ROOT" --db="$DB" --archive --gzip --quiet > "$BASELINE.tmp" \
+    && [ -s "$BASELINE.tmp" ] && mv "$BASELINE.tmp" "$BASELINE" || { echo "could not snapshot the $STUDIO baseline" >&2; return 1; }
+  local hash; hash=$(sha256sum "$BASELINE" | cut -c1-12)
+  RUNTIME_JSON=$(python3 -c 'import json,sys; print(json.dumps({"studio": sys.argv[1], "mode": "per-group", "startedAt": sys.argv[2], "baseline": {"kind": "blank", "snapshot": sys.argv[3]}}))' \
+    "$STUDIO" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$hash")
+  echo "$STUDIO runtime up (model $model), baseline $hash"
 }
 
-down() { "${COMPOSE[@]}" down >/dev/null 2>&1 || true; }
+# Before every case: the database back to the group's baseline, the kill switch
+# and scripted faults cleared. (The paper account is reset by the runner.)
+# Dropping first matters: a restore only replaces the collections in the archive,
+# and a case may have created others.
+reset_case() {
+  clear_state
+  mongo "db.getSiblingDB(\"$DB\").dropDatabase()" &&
+    docker exec -i "$MONGO_CONTAINER" mongorestore --uri="$MONGO_URI_ROOT" --archive --gzip --nsInclude="$DB.*" --quiet < "$BASELINE"
+}
 
-# Keep the run's database with its other artifacts, so the run can be loaded into a
-# studio later (see inspect.sh). The dump is a few hundred KB.
+# After the group: stop the runtime and leave its database empty.
+runtime_down() {
+  "${COMPOSE[@]}" down >/dev/null 2>&1 || echo "warning: could not stop the $STUDIO runtime" >&2
+  mongo "db.getSiblingDB(\"$DB\").dropDatabase()" || true
+}
+
+# Keep the run's database with its other artifacts, so a run can be looked at
+# later. The dump is a few hundred KB.
 archive_db() {
   local out="results/$1/$2/$3.mongo.gz"
-  if docker exec "$MONGO_CONTAINER" mongodump --uri="$MONGO_URI_ROOT" --db=benchmark_run --archive --gzip > "$out" 2>/dev/null && [ -s "$out" ]; then
+  if docker exec "$MONGO_CONTAINER" mongodump --uri="$MONGO_URI_ROOT" --db="$DB" --archive --gzip > "$out" 2>/dev/null && [ -s "$out" ]; then
     [ -f "results/$1/$2/$3.json" ] && python3 - "results/$1/$2/$3.json" "$3.mongo.gz" <<'PY'
 import json, sys
 path, name = sys.argv[1:3]
@@ -77,7 +139,6 @@ run_one() {
   # reports its own timings in the body, vLLM reports only engine-wide counters,
   # and the studio should not have to know the difference. It also measures what
   # the call drew at the wall, which no engine can.
-  export LOCAL_LLM_BASE_URL="$SHIM_BASE_URL"
 
   # Whichever local model a case asks for, the card must actually be holding it.
   # One card holds one model and loading another takes minutes, so a run started
@@ -143,14 +204,14 @@ except Exception: print("")' 2>/dev/null)" != "up" ]; then
     fi
   ;; esac
 
-  if ! reset_db; then record_failure "$run_id" "$label" "$id" "could not reset the benchmark database"; return 0; fi
-  if ! (up "$model"); then record_failure "$run_id" "$label" "$id" "studio failed to start"; down; return 0; fi
+  if ! reset_case; then record_failure "$run_id" "$label" "$id" "could not reset the $STUDIO studio to its baseline"; return 0; fi
+  local case_started; case_started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   set +e
   docker run --rm --name bench-runner --network "$DOCKER_NETWORK" -v "$PWD":/bench -v "$GUIDANCE_DIR":/guidance:ro -w /bench \
     --user "$(id -u):$(id -g)" -e HOME=/tmp -e npm_config_cache=/tmp/.npm \
     --env-file "$ENV_FILE" \
-    -e BENCH_URL=http://agent-service-run:3001 \
-    -e BENCH_MONGO_URI="mongodb://benchmark_run:$(grep '^BENCHMARK_RUN_DB_PASSWORD=' "$ENV_FILE" | cut -d= -f2)@${MONGO_HOST}:27017/benchmark_run?authSource=admin" \
+    -e BENCH_URL="http://$CONTAINER:3001" -e BENCH_STUDIO="$STUDIO" -e BENCH_RUNTIME_JSON="$RUNTIME_JSON" \
+    -e BENCH_MONGO_URI="mongodb://benchmark_run:$(grep '^BENCHMARK_RUN_DB_PASSWORD=' "$ENV_FILE" | cut -d= -f2)@${MONGO_HOST}:27017/$DB?authSource=admin" \
     -e BENCH_RUN_ID="$run_id" -e GUIDANCE_DIR=/guidance -e BENCH_CODE_VERSION="$BENCH_CODE_VERSION" \
     -e BENCH_MODEL_LABEL="$label" -e BENCH_INFERENCE_JSON="${BENCH_INFERENCE_JSON:-}" \
     -e BENCH_SERVER_JSON="$server_json" \
@@ -162,10 +223,9 @@ except Exception: print("")' 2>/dev/null)" != "up" ]; then
     node:22-slim sh -c "npm i --silent --no-audit --no-fund >/dev/null 2>&1 && node run-dev.mjs '$model' '$id'"
   set -e
   mkdir -p "results/$run_id/$label"
-  docker logs agent-service-run > "results/$run_id/$label/service-$id.log" 2>&1 || true
+  # Only this case's part of the runtime's log: it runs for the whole group.
+  docker logs --since "$case_started" "$CONTAINER" > "results/$run_id/$label/service-$id.log" 2>&1 || true
   archive_db "$run_id" "$label" "$id"
-  down
-  reset_db || true   # leave the throwaway studio empty
   [ -f "results/$run_id/$label/$id.json" ] || record_failure "$run_id" "$label" "$id" "runner produced no result"
   return 0
 }
@@ -176,11 +236,17 @@ run() {
   local ids=("$@")
   if [ ${#ids[@]} -eq 0 ] && [ -n "${BENCH_CASES:-}" ]; then read -r -a ids <<< "$BENCH_CASES"; fi
   if [ ${#ids[@]} -eq 0 ]; then
-    mapfile -t ids < <(grep -l '"suite": "investment"' cases/*.json | while read -r f; do basename "$f" .json; done)
+    mapfile -t ids < <(grep -lE "\"(studio|suite)\": \"$STUDIO\"" cases/*.json | while read -r f; do basename "$f" .json; done)
   fi
-  for id in "${ids[@]}"; do run_one "$model" "$id" "$run_id"; done
-  local missing=0
   local label="$model${BENCH_LABEL_SUFFIX:+--$BENCH_LABEL_SUFFIX}"
+  # One runtime for the whole group; a case resets it, never restarts it.
+  if runtime_up "$model"; then
+    for id in "${ids[@]}"; do run_one "$model" "$id" "$run_id"; done
+  else
+    for id in "${ids[@]}"; do record_failure "$run_id" "$label" "$id" "the $STUDIO runtime failed to start"; done
+  fi
+  runtime_down
+  local missing=0
   for id in "${ids[@]}"; do
     [ -f "results/$run_id/$label/$id.json" ] || { echo "MISSING result: $label / $id" >&2; missing=1; }
   done

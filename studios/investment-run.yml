@@ -1,11 +1,8 @@
-# Throwaway Investment Studio agent-service used by the development benchmark.
-# Started fresh for every case by scripts/bench/bench-dev.sh, on an EMPTY database
-# (benchmark_run, dropped before each case), so nothing from one run reaches the next.
-# It is separate from the workbench studio (docker-compose.benchmark.yml), which keeps
-# your own agents, panels and sessions. Both use the same Alpaca paper account.
-#
-#   BENCH_MODEL=claude-sonnet-5 docker compose -p benchmark-run \
-#     --env-file benchmark-run.env -f docker-compose.benchmark-run.yml up -d
+# The runtime of the `investment` bench studio (ADR-0020; defined in agent-studio
+# scripts/bench/studios/investment.json, which names this file). bench/bench-dev.sh
+# starts it once per (model, condition) group on its own database (benchmark_run)
+# and resets that database to a post-startup snapshot before every case. The
+# Investment Studio exists only for benchmarking; the paper account is the bench's.
 name: benchmark-run
 
 services:
@@ -63,7 +60,7 @@ services:
       MCP_SERVERS: '[{"applicationId":"benchmark-agent-studio","name":"tavily","endpoint":"https://mcp.tavily.com/mcp/","authType":"bearer","authValueEnvVar":"TAVILY_API_KEY"}]'
       # No email or messaging accounts here. The two editor tools only ask a browser to open a
       # panel; a headless benchmark has no browser, so calling one blocks until it times out.
-      DISABLED_TOOLS: "notify,notify-list-recipients,telegram-*,open-agent-editor,open-panel-editor"
+      DISABLED_TOOLS: ${DISABLED_TOOLS:?set from the bench studio definition's sandbox.disabledTools}
     volumes:
       - ${RUN_STATE_DIR}:/state
       - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/profiles/benchmark/engine/src/context:/guidance:ro
