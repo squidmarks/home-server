@@ -141,6 +141,9 @@ services:
     environment:
       NODE_ENV: production
       AGENT_SERVICE_URL: http://agent-service:3001
+      # Caddy's forward_auth passes oauth2-proxy's verified email here (and strips any
+      # client-sent copy), so server-side routes like /panel/<id> know the viewer.
+      AUTH_PROXY_EMAIL_HEADER: X-Auth-Request-Email
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: https://home.${STUDIOS_DOMAIN}
     depends_on:
@@ -171,6 +174,9 @@ services:
     environment:
       NODE_ENV: production
       AGENT_SERVICE_URL: http://agent-service:3001
+      # Caddy's forward_auth passes oauth2-proxy's verified email here (and strips any
+      # client-sent copy), so server-side routes like /panel/<id> know the viewer.
+      AUTH_PROXY_EMAIL_HEADER: X-Auth-Request-Email
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: https://witness.${STUDIOS_DOMAIN}
     depends_on:
@@ -248,6 +254,9 @@ services:
     environment:
       NODE_ENV: production
       AGENT_SERVICE_URL: http://agent-service:3001
+      # Caddy's forward_auth passes oauth2-proxy's verified email here (and strips any
+      # client-sent copy), so server-side routes like /panel/<id> know the viewer.
+      AUTH_PROXY_EMAIL_HEADER: X-Auth-Request-Email
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: https://invest.${STUDIOS_DOMAIN}
     depends_on:

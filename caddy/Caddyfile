@@ -89,15 +89,24 @@
 	}
 
 	handle {
-		forward_auth 127.0.0.1:4180 {
-			uri /oauth2/auth
-			header_up X-Real-IP {remote_host}
-			@unauthorized status 401
-			handle_response @unauthorized {
-				redir * /oauth2/start?rd={scheme}://{host}{uri}
+		# `route` keeps these in written order; Caddy's default order would run
+		# forward_auth before request_header and strip the verified email.
+		route {
+			# The viewer's verified email, for the studio's server-side routes
+			# (AUTH_PROXY_EMAIL_HEADER). Only oauth2-proxy may set it: drop any
+			# copy the browser sent, then copy it from the auth response.
+			request_header -X-Auth-Request-Email
+			forward_auth 127.0.0.1:4180 {
+				uri /oauth2/auth
+				header_up X-Real-IP {remote_host}
+				copy_headers X-Auth-Request-Email
+				@unauthorized status 401
+				handle_response @unauthorized {
+					redir * /oauth2/start?rd={scheme}://{host}{uri}
+				}
 			}
+			reverse_proxy {args[0]}
 		}
-		reverse_proxy {args[0]}
 	}
 }
 
