@@ -1,7 +1,7 @@
 # Model Bench review UI (the app itself lives in the agent-studio repo, apps/bench-ui).
 # Reads benchmark results read-only; writes only ratings.json and the job queue in the
 # data dir, and edits cases. Published on 127.0.0.1:3400; Caddy (caddy/) serves it
-# as bench.<domain>.
+# as bench.<domain>. Its MCP endpoint, /mcp, takes a key (bench-ui.env).
 #   docker compose -f ~/infra/bench/ui/docker-compose.yml up -d
 name: bench-ui
 services:
@@ -18,6 +18,15 @@ services:
       DATA_DIR: /data
       CASES_DIR: /cases
       BENCH_LIB: /bench-lib
+      STUDIOS_DIR: /studios
+      BENCH_GUIDE: /guide/bench-guide.md
+    # The MCP endpoint's key and settings (ADR-0021), never in this repo:
+    #   BENCH_MCP_KEY=bmk_...          required by POST /mcp
+    #   BENCH_PUBLIC_URL=https://bench.<domain>   for links in tool results
+    #   SHIM_ADMIN_URL=http://<inference box>:8091   for bench_inference_status
+    env_file:
+      - path: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/bench-ui.env
+        required: false
     volumes:
       - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/apps/bench-ui:/app:ro
       - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/scripts/bench/results:/results:ro
@@ -25,6 +34,16 @@ services:
       - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/scripts/bench/cases:/cases
       # not /lib: that would shadow the container's system libraries
       - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/scripts/bench/lib:/bench-lib:ro
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/scripts/bench/studios:/studios:ro
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/docs:/guide:ro
     ports:
       - "127.0.0.1:3400:3400"
+    # Also on the studios network, where the Cloudflare tunnel runs, so the tunnel
+    # can publish /mcp (and only /mcp: the server refuses anything else that
+    # arrives through it).
+    networks: [default, studios]
     mem_limit: 256m
+networks:
+  studios:
+    external: true
+    name: studios_default
