@@ -23,6 +23,7 @@ import { spawn } from "node:child_process";
 import { ADAPTERS, adapterFor, detect } from "./adapters/index.mjs";
 import { energyOf, powerConfig, readPlug } from "./power.mjs";
 import { MODELS, engineModelId, modelFor, residentFrom, withAnthropicFields } from "./models.mjs";
+import { countImages, trimImages } from "./images.mjs";
 import { readGpu, readHost, queueFrom } from "./telemetry.mjs";
 import { isProfileName, switcherFor, readProfile } from "./profiles.mjs";
 
@@ -94,6 +95,20 @@ async function residentModel(adapter, { maxAgeMs = 5000 } = {}) {
   return resident;
 }
 
+/**
+ * The engine's per-prompt image limit, cached. Reading it costs two docker
+ * calls, and it changes only when the engine restarts -- which a switch marks
+ * by clearing `resident`, so the cache is keyed on that too.
+ */
+let imgLimit = { value: null, at: 0, adapter: null };
+async function imageLimit(adapter) {
+  const fresh = Date.now() - imgLimit.at < 60_000 && imgLimit.adapter === adapter && resident;
+  if (fresh) return imgLimit.value;
+  const value = typeof adapter?.imageLimit === "function" ? await adapter.imageLimit().catch(() => null) : null;
+  imgLimit = { value, at: Date.now(), adapter };
+  return value;
+}
+
 /** The metrics object every response carries, whichever engine served it. */
 async function collect(adapter, { body, before, exclusive }) {
   const engine = adapter.fromBody(body) ?? (await adapter.sampleAfter(before?.counters, { exclusive }));
@@ -135,18 +150,36 @@ async function proxy(req, res, adapter) {
   const chunks = [];
   for await (const c of req) chunks.push(c);
   let raw = Buffer.concat(chunks);
-  // A request for an Anthropic-facing id (see anthropicId in models.mjs) names
-  // a model the engine has never heard of; point it at the real one. Only
-  // then is the body re-serialised -- every other body is forwarded byte for byte.
+  // Two rewrites, and only these; any other body is forwarded byte for byte.
+  //   - An Anthropic-facing id (see anthropicId in models.mjs) names a model
+  //     the engine has never heard of, so it is pointed at the real one.
+  //   - A conversation carrying more images than the engine takes keeps only
+  //     the newest (see images.mjs); otherwise every later turn is refused.
+  let imagesDropped = 0;
   if (req.method === "POST" && raw.length) {
     try {
-      const parsed = JSON.parse(raw.toString("utf8"));
+      let parsed = JSON.parse(raw.toString("utf8"));
+      let changed = false;
       const real = engineModelId(parsed?.model);
       if (typeof parsed?.model === "string" && real !== parsed.model) {
-        raw = Buffer.from(JSON.stringify({ ...parsed, model: real }));
+        parsed = { ...parsed, model: real };
+        changed = true;
       }
+      if (url.pathname.endsWith("/messages") && countImages(parsed) > 0) {
+        const t = trimImages(parsed, await imageLimit(adapter));
+        if (t.dropped) {
+          parsed = t.body;
+          imagesDropped = t.dropped;
+          changed = true;
+          console.log(`images: kept the newest ${countImages(parsed)}, replaced ${t.dropped} older with text`);
+        }
+      }
+      if (changed) raw = Buffer.from(JSON.stringify(parsed));
     } catch { /* not json: forward as is */ }
   }
+  // Said on the response too, so a caller can tell trimming from a model that
+  // simply did not look at its picture.
+  if (imagesDropped) res.setHeader("x-shim-images-dropped", String(imagesDropped));
   const wantsMetrics = url.pathname.endsWith("/chat/completions") || url.pathname.endsWith("/completions");
 
   // A request for a model that is not loaded is answered NOW, not held open
