@@ -22,7 +22,7 @@ import os from "node:os";
 import { spawn } from "node:child_process";
 import { ADAPTERS, adapterFor, detect } from "./adapters/index.mjs";
 import { energyOf, powerConfig, readPlug } from "./power.mjs";
-import { MODELS, modelFor, residentFrom } from "./models.mjs";
+import { MODELS, engineModelId, modelFor, residentFrom, withAnthropicFields } from "./models.mjs";
 import { readGpu, readHost, queueFrom } from "./telemetry.mjs";
 import { isProfileName, switcherFor, readProfile } from "./profiles.mjs";
 
@@ -134,7 +134,19 @@ async function proxy(req, res, adapter) {
   const target = `${adapter.baseUrl}${url.pathname}${url.search}`;
   const chunks = [];
   for await (const c of req) chunks.push(c);
-  const raw = Buffer.concat(chunks);
+  let raw = Buffer.concat(chunks);
+  // A request for an Anthropic-facing id (see anthropicId in models.mjs) names
+  // a model the engine has never heard of; point it at the real one. Only
+  // then is the body re-serialised -- every other body is forwarded byte for byte.
+  if (req.method === "POST" && raw.length) {
+    try {
+      const parsed = JSON.parse(raw.toString("utf8"));
+      const real = engineModelId(parsed?.model);
+      if (typeof parsed?.model === "string" && real !== parsed.model) {
+        raw = Buffer.from(JSON.stringify({ ...parsed, model: real }));
+      }
+    } catch { /* not json: forward as is */ }
+  }
   const wantsMetrics = url.pathname.endsWith("/chat/completions") || url.pathname.endsWith("/completions");
 
   // A request for a model that is not loaded is answered NOW, not held open
@@ -502,14 +514,16 @@ export const server = http.createServer(async (req, res) => {
       // nowhere, so it is observed from how the engine was started. Omitted
       // when unknown: absent means "decide for yourself", 0 means "refused".
       const imgs = typeof cur.imageLimit === "function" ? await cur.imageLimit().catch(() => null) : null;
-      return json(res, 200, {
+      // One answer for OpenAI and Anthropic callers alike: the Anthropic fields
+      // are additive, so an OpenAI client reads the same rows it always has.
+      return json(res, 200, withAnthropicFields({
         ...body,
         data: body.data.map(m => ({
           ...m,
           ...(Number.isFinite(m?.max_model_len) || ctx == null ? {} : { max_model_len: ctx }),
           ...(imgs == null ? {} : { max_images_per_prompt: imgs }),
         })),
-      });
+      }));
     }
 
     if (url.pathname === "/health") return json(res, 200, { ok: true, backend: (await currentBackend())?.id ?? null });
