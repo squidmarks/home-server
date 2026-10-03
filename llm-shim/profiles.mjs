@@ -66,6 +66,10 @@ export async function switcherFor(engineId, { dir, dockerPs = defaultDockerPs } 
   if (engineId === "llama") {
     return { script: path.join(dir, "profiles.sh"), engine: "llama", switchable: true };
   }
+  if (engineId === "strata") {
+    // One fixed configuration, like sly; serve-strata.sh picks the config file.
+    return { script: null, engine: "strata", switchable: false, fixed: "coder-iq1_m-262k" };
+  }
   if (engineId !== "vllm") return null;
   const names = await dockerPs();
   if (names.some(n => /vllm-sly/.test(n))) {

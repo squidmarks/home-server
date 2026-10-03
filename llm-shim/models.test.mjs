@@ -86,3 +86,11 @@ test("an empty or broken engine answer stays empty", () => {
   assert.deepEqual(withAnthropicFields({ object: "list", data: [] }).data, []);
   assert.deepEqual(withAnthropicFields(null).data, []);
 });
+
+test("the Strata coder is found by the name its server lists, and switches by a fixed key", async () => {
+  const { MODEL_KEYS, residentFrom } = await import("./models.mjs");
+  assert.equal(modelFor("qwen3.8-flash-next-coder-iq1_m").id, "local-qwen3.8-flash-next-coder");
+  assert.equal(modelFor("local-qwen3.8-flash-next-coder").engine, "strata");
+  assert.ok(MODEL_KEYS.includes("coder-strata"));
+  assert.equal(residentFrom(["qwen3.8-flash-next-coder-iq1_m"]).key, "coder-strata");
+});

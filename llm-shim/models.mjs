@@ -45,6 +45,13 @@ export const MODELS = {
     name: "Qwen3.8 27B Q4_K_M (llama.cpp)",
     served: ["local-qwen3.8-27b", "Qwen3.8-27B-UD-Q4_K_M.gguf"],
   },
+  "local-qwen3.8-flash-next-coder": {
+    key: "coder-strata",
+    engine: "strata",
+    name: "Qwen3.8-Flash-Next Coder IQ1_M (Strata)",
+    // Strata answers to any model name, but lists this one.
+    served: ["qwen3.8-flash-next-coder-iq1_m", "local-qwen3.8-flash-next-coder"],
+  },
 };
 
 /** Every key switch-engine.sh is allowed to be called with. */

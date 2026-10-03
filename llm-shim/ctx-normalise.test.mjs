@@ -46,3 +46,12 @@ test("unknown is null, never zero", () => {
   assert.equal(imageLimitFromArgs(["--max-model-len", "262144"]), null);
   assert.equal(imageLimitFromArgs(null), null);
 });
+
+test("strata reads like llama.cpp: per-request timings, labelled as strata", async () => {
+  const { strata } = await import("./adapters/index.mjs");
+  const m = strata.fromBody({ timings: { prompt_n: 100, prompt_ms: 50, predicted_n: 20, predicted_ms: 200, cache_n: 80 } });
+  assert.equal(m.engine, "strata");
+  assert.equal(m.cachedTokens, 80);
+  assert.equal(m.predictedTokensPerSec, 100);
+  assert.equal(await strata.imageLimit(), 0);
+});

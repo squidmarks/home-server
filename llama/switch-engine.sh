@@ -5,6 +5,7 @@
 #   ./switch-engine.sh qwen-vllm    Qwen3.8 MXFP4 on vLLM  (8080)
 #   ./switch-engine.sh gemma-vllm   Gemma 4 26B A4B on vLLM (8080)
 #   ./switch-engine.sh qwen-llama   Qwen3.8 Q4_K_M on llama.cpp (8090)
+#   ./switch-engine.sh coder-strata Qwen3.8-Flash-Next Coder IQ1_M on Strata (8092)
 #   ./switch-engine.sh llama|vllm   the old engine-only names, still accepted
 #
 # The argument is a KEY from a fixed set, never a path and never flags. The shim
@@ -43,17 +44,23 @@ stop_vllm() {
   done
   return 0
 }
+stop_strata() {
+  pgrep -f "serve/server.py --engine strata" >/dev/null && { echo ">>> stopping strata"; "$HERE/serve-strata.sh" stop; }
+  return 0
+}
 stop_llama() {
   if systemctl is-active --quiet llama-server; then echo ">>> stopping llama-server"; sudo systemctl stop llama-server; fi
 }
 
 case "$TARGET" in
   gemma-vllm)
+    stop_strata
     stop_llama
     stop_vllm
     exec "$HERE/serve-model.sh" gemma
     ;;
   qwen-llama|llama)
+    stop_strata
     stop_vllm
     echo ">>> starting llama.cpp on profile $PROFILE"
     "$HERE/profiles.sh" set "$PROFILE" || exit 3
@@ -65,6 +72,7 @@ case "$TARGET" in
     # `vllm-profiles.sh set short-dflash`, which meant the shim loading this
     # model id by name would tear sly down and bring up the superseded 65K
     # build -- silently losing three quarters of the context window and vision.
+    stop_strata
     stop_llama
     stop_vllm
     exec "$HERE/serve-sly.sh"
@@ -73,11 +81,13 @@ case "$TARGET" in
     # The superseded radiance tree, kept reachable to reproduce results recorded
     # against it. short-dflash is the shape the sweeps settled on; the bare
     # `vllm` branch below comes up in the launcher's untuned default instead.
+    stop_strata
     stop_llama
     stop_vllm
     exec "$HERE/vllm-profiles.sh" set short-dflash
     ;;
   vllm)
+    stop_strata
     stop_llama
     [ -x "$VLLM_DIR/serve-tp1.sh" ] || { echo "!! $VLLM_DIR/serve-tp1.sh not found"; exit 2; }
     echo ">>> starting vLLM (first start compiles kernels; several minutes)"
@@ -94,5 +104,10 @@ case "$TARGET" in
     done
     echo "!! vLLM did not become healthy within 20 minutes"; exit 4
     ;;
-  *) echo "usage: $0 qwen-vllm|qwen-vllm-radiance|gemma-vllm|qwen-llama (or llama|vllm)" >&2; exit 2 ;;
+  coder-strata)
+    stop_llama
+    stop_vllm
+    exec "$HERE/serve-strata.sh"
+    ;;
+  *) echo "usage: $0 qwen-vllm|qwen-vllm-radiance|gemma-vllm|qwen-llama|coder-strata (or llama|vllm)" >&2; exit 2 ;;
 esac

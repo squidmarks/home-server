@@ -70,3 +70,9 @@ test("a switcher that will not answer leaves the profile unknown, not wrong", as
   assert.equal(p.profile, null);
   assert.deepEqual(p.available, []);
 });
+
+test("strata is one fixed configuration", async () => {
+  const sw = await switcherFor("strata", { dir: "/x", dockerPs: async () => [] });
+  assert.equal(sw.switchable, false);
+  assert.equal(sw.fixed, "coder-iq1_m-262k");
+});

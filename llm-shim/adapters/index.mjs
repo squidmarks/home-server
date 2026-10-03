@@ -1,4 +1,4 @@
-// One interface, two local engines.
+// One interface, three local engines.
 //
 // An adapter knows three things the shim cannot know generically: where its
 // engine listens, whether it is up, and how to get that engine's own account of
@@ -164,16 +164,62 @@ async function counters(baseUrl) {
   }
 }
 
-export const ADAPTERS = { llama, vllm };
+/**
+ * Strata: an MoE runner that keeps experts in system RAM and caches the hot ones
+ * in VRAM (serve-strata.sh). Its server answers in llama.cpp's names -- per
+ * request `timings` in the body, n_ctx on /props -- so it reads like llama.cpp.
+ * It binds 127.0.0.1 only, which is fine: the shim runs on the same host.
+ */
+export const strata = {
+  name: "Strata (Qwen3.8-Flash-Next Coder)",
+  id: "strata",
+  baseUrl: process.env.STRATA_BASE_URL || "http://127.0.0.1:8092",
+  async health() {
+    try {
+      const r = await fetch(`${this.baseUrl}/health`, { signal: timeout(2500) });
+      return r.ok ? "up" : "down";
+    } catch {
+      return "down";
+    }
+  },
+  async sampleBefore() {
+    return null;
+  },
+  async sampleAfter() {
+    return null;
+  },
+  fromBody(body) {
+    const m = fromLlamaTimings(body?.timings);
+    return m ? { ...m, engine: "strata" } : m;
+  },
+  /** The coder model is text only. */
+  async imageLimit() {
+    return 0;
+  },
+  async contextWindow() {
+    try {
+      const r = await fetch(`${this.baseUrl}/props`, { signal: timeout(2500) });
+      const fromProps = r.ok ? ctxFromProps(await r.json()) : null;
+      if (fromProps) return fromProps;
+      const m = await fetch(`${this.baseUrl}/v1/models`, { signal: timeout(2500) });
+      const n = m.ok ? Number((await m.json())?.data?.[0]?.meta?.n_ctx) : NaN;
+      return Number.isFinite(n) && n > 0 ? n : null;
+    } catch {
+      return null;
+    }
+  },
+};
+
+export const ADAPTERS = { llama, vllm, strata };
 
 /** The adapter named in the environment, defaulting to whichever is serving. */
 export function adapterFor(id) {
   return ADAPTERS[id] ?? null;
 }
 
-/** Whichever engine is actually answering right now, or null if neither is. */
+/** Whichever engine is actually answering right now, or null if none is. */
 export async function detect() {
-  for (const a of [vllm, llama]) {
+  for (const a of [vllm, llama, strata]) {
     if ((await a.health()) === "up") return a;
   }
   return null;
