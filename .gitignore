@@ -31,3 +31,4 @@ bench-ui-data/
 benchmark-state/
 results/
 monitoring/prometheus/targets/
+hottub/admin-emails.txt

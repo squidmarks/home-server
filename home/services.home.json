@@ -31,6 +31,13 @@
           "port": null,
           "check": "http://homeassistant.{tailnet}/",
           "sub": "ha"
+        },
+        {
+          "name": "Hot tub",
+          "description": "Water temperature, heat, jets; admin settings (Google login)",
+          "port": null,
+          "check": "http://127.0.0.1:3500/healthz",
+          "sub": "hottub"
         }
       ]
     },

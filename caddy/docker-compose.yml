@@ -9,6 +9,7 @@
 #   DOMAIN=            the domain (e.g. example.com)
 #   CF_API_TOKEN=      Cloudflare token limited to Zone -> DNS -> Edit on DOMAIN
 #   TAILNET_IP=        this box's tailnet IPv4 (`tailscale ip -4`)
+#   LAN_IP=            this box's LAN IPv4 (only hottub.<domain> listens on it)
 #   HA_UPSTREAM=       Home Assistant, e.g. http://<HA's tailnet IP>
 #   INFERENCE_FQDN=    the inference box's tailnet name (its shim and tools)
 # Run from ~/infra/caddy:  docker compose up -d --build
