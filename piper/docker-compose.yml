@@ -1,0 +1,33 @@
+# Piper: text-to-speech for Home Assistant, over the Wyoming protocol. Home
+# Assistant (the haos VM on this box) reaches it through the Wyoming integration
+# (Settings -> Devices & Services -> Wyoming Protocol, host + port 10200); the
+# Home Studio's ha_speak tool then speaks through it with tts.speak.
+#
+# Why it binds the tailnet address and not 127.0.0.1: the VM is attached with
+# macvtap on this box's NIC, so it cannot reach the host's LAN address. It can
+# reach the host's tailnet address. Put that address in piper/.env (gitignored,
+# machine-local):  PIPER_BIND=100.x.y.z
+# Left unset it binds 127.0.0.1, which Home Assistant cannot use.
+#
+# Voices download on first use (about 15 to 25 seconds each, long enough for an
+# announcement to be dropped), so the voices ha_speak offers are warmed once
+# after a fresh volume; see the README. They persist in the piper-data volume.
+#
+# Run from ~/infra/piper:  docker compose up -d
+services:
+  piper:
+    image: rhasspy/wyoming-piper:latest
+    container_name: piper
+    restart: unless-stopped
+    # Default voice only; ha_speak always asks for its own (amy unless told otherwise).
+    command: ["--voice", "en_US-amy-medium"]
+    ports:
+      - "${PIPER_BIND:-127.0.0.1}:10200:10200"
+    volumes:
+      - piper-data:/data
+    mem_limit: 1g
+
+volumes:
+  piper-data:
+    # Created by the first manual `docker run`; keeps the voices already downloaded.
+    external: true
