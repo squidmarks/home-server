@@ -79,7 +79,15 @@ export async function buildStatus(config, fetchImpl = fetch) {
   };
 }
 
-const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8" };
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  // The home-screen icon and its manifest.
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webmanifest": "application/manifest+json",
+};
 
 export function createServer({ servicesFile = defaultServicesFile(), fetchImpl = fetch } = {}) {
   let cache = { at: 0, body: null };

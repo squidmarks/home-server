@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- The home lab: a house with a server rack inside, its status lights up.
+       Full-bleed square: iOS fills transparent corners with black. -->
+  <rect width="512" height="512" fill="#3b5bdb"/>
+  <path d="M256 92 L432 236 L400 236 L400 420 L112 420 L112 236 L80 236 Z"
+        fill="none" stroke="#ffffff" stroke-width="30" stroke-linejoin="round"/>
+  <g fill="#ffffff">
+    <rect x="176" y="250" width="160" height="40" rx="8"/>
+    <rect x="176" y="302" width="160" height="40" rx="8"/>
+    <rect x="176" y="354" width="160" height="40" rx="8"/>
+  </g>
+  <g fill="#2f9e44">
+    <circle cx="306" cy="270" r="9"/>
+    <circle cx="306" cy="322" r="9"/>
+    <circle cx="306" cy="374" r="9"/>
+  </g>
+  <g fill="#3b5bdb">
+    <rect x="196" y="265" width="70" height="10" rx="5"/>
+    <rect x="196" y="317" width="70" height="10" rx="5"/>
+    <rect x="196" y="369" width="70" height="10" rx="5"/>
+  </g>
+</svg>

@@ -42,6 +42,22 @@ test("serves the page, the api, and refuses odd paths", async () => {
   assert.equal((await fetch(base + "/", { method: "POST" })).status, 405);
 });
 
+test("serves the home-screen icon and manifest with their types", async () => {
+  for (const [file, type] of [
+    ["/apple-touch-icon.png", "image/png"],
+    ["/icon-192.png", "image/png"],
+    ["/icon-512.png", "image/png"],
+    ["/icon.svg", "image/svg+xml"],
+    ["/manifest.webmanifest", "application/manifest+json"],
+  ]) {
+    const r = await fetch(base + file);
+    assert.equal(r.status, 200, file);
+    assert.equal(r.headers.get("content-type"), type, file);
+  }
+  const html = await (await fetch(base + "/")).text();
+  assert.match(html, /rel="apple-touch-icon" href="\/apple-touch-icon.png"/);
+});
+
 test("a service on another machine keeps its short host and scheme; {tailnet} checks use the suffix", async () => {
   const seen = [];
   const record = async url => { seen.push(url); return { status: 200 }; };
