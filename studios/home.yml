@@ -85,6 +85,11 @@ services:
       # Where Home Assistant sends webhook calls. The studio's own name works:
       # HA resolves it through public DNS to this box's tailnet IP.
       HA_WEBHOOK_BASE_URL: ${HA_WEBHOOK_BASE_URL:-https://home.${STUDIOS_DOMAIN}}
+      # A Spotify developer app (developer.spotify.com/dashboard), for the Home
+      # Studio's spotify_search tool: catalog search only, no user login. Playing
+      # goes through Home Assistant's Sonos, which uses its own linked account.
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
 
       # --- Witness engine -------------------------------------------------
       WITNESS_REQUIRE_AUTH: "false"
