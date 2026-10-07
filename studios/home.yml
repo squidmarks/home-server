@@ -97,6 +97,10 @@ services:
       WITNESS_TOKEN_ENCRYPTION_KEY: ${WITNESS_TOKEN_ENCRYPTION_KEY}
       WITNESS_OAUTH_EDGE_URL: https://connect.${STUDIOS_DOMAIN}
       WITNESS_ADMIN_EMAILS: ${WITNESS_ADMIN_EMAILS}
+      # Transaction model v2: "1" keeps a still-running v1 agent working during the
+      # cutover (accepts v1 leaves, ignores a supplied lifeState, coerces line-item
+      # signs). Unset it once the v2 migration has been applied.
+      WITNESS_V2_COMPAT: ${WITNESS_V2_COMPAT:-}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
       PUSHOVER_API_TOKEN: ${PUSHOVER_API_TOKEN}

@@ -1,0 +1,22 @@
+# Split-horizon DNS for the tailnet (see Corefile). Listens ONLY on this box's
+# tailnet IP, port 53; binding it at boot relies on net.ipv4.ip_nonlocal_bind=1
+# (set for Caddy already).
+#
+# Settings in a gitignored dns/.env (compose reads it automatically):
+#   DOMAIN=       the domain (same as caddy/.env)
+#   TAILNET_IP=   this box's tailnet IPv4
+# Run from ~/infra/dns:  docker compose up -d
+name: dns
+
+services:
+  coredns:
+    image: coredns/coredns:1.12.1
+    container_name: coredns
+    restart: unless-stopped
+    network_mode: host
+    user: "0:0"   # port 53
+    env_file: .env
+    command: ["-conf", "/etc/coredns/Corefile"]
+    volumes:
+      - ./:/etc/coredns:ro
+    mem_limit: 64m

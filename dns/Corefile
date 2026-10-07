@@ -1,0 +1,19 @@
+# Split DNS for the tailnet: Tailscale is told (admin console -> DNS -> add
+# nameserver -> this box's tailnet IP, "restrict to domain" = the domain) to
+# ask this server about the domain. Tailnet devices then get this box's
+# tailnet IP for every name, including hottub. (hottub's PUBLIC record points
+# at the LAN IP for guests on the Wi-Fi, which a tailnet phone at home can't
+# reliably reach.) Everything except A/AAAA is forwarded, so TXT/NS lookups
+# (Caddy's DNS-challenge propagation checks run on this box) still work.
+{$DOMAIN}:53 {
+    bind {$TAILNET_IP}
+    template IN A {
+        answer "{{ .Name }} 60 IN A {$TAILNET_IP}"
+    }
+    # No IPv6 answer: clients fall back to the A record.
+    template IN AAAA {
+        rcode NOERROR
+    }
+    forward . 1.1.1.1 1.0.0.1
+    errors
+}
