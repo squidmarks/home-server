@@ -89,6 +89,10 @@ hottub.{$DOMAIN} {
 	handle @mongo {
 		reverse_proxy 127.0.0.1:3110
 	}
+	@dogs host dogs.{$DOMAIN}
+	handle @dogs {
+		reverse_proxy 127.0.0.1:3800
+	}
 	@bench host bench.{$DOMAIN}
 	handle @bench {
 		reverse_proxy 127.0.0.1:3400
