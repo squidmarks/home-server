@@ -29,6 +29,9 @@ services:
       CONTROLLER_HOST: ${CONTROLLER_HOST}
       CONTROLLER_API_KEY: ${CONTROLLER_API_KEY}
       ADMIN_EMAILS: ${ADMIN_EMAILS}
+    volumes:
+      # Temperature history (SQLite, 1-minute samples, 60 days). Gitignored.
+      - ./data:/data
 
   # Admin login only (Caddy asks it via forward_auth for /admin and
   # /api/admin/*); the guest page has no login.

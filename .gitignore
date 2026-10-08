@@ -35,3 +35,4 @@ hottub/admin-emails.txt
 
 # Private security reports — full detail with real IPs/IDs (repo is public)
 docs/security/*.FULL.md
+hottub/data/
