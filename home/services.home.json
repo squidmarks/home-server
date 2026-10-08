@@ -38,6 +38,13 @@
           "port": null,
           "check": "http://127.0.0.1:3500/healthz",
           "sub": "hottub"
+        },
+        {
+          "name": "Dog Tracker",
+          "description": "Live GPS tracking for the dogs: map, yard zones and alerts",
+          "port": null,
+          "check": "http://127.0.0.1:3800/api/zones",
+          "sub": "dogs"
         }
       ]
     },
