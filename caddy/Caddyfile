@@ -91,7 +91,10 @@ hottub.{$DOMAIN} {
 	}
 	@dogs host dogs.{$DOMAIN}
 	handle @dogs {
-		reverse_proxy 127.0.0.1:3800
+		# /api/stream is server-sent events: never buffer it.
+		reverse_proxy 127.0.0.1:3800 {
+			flush_interval -1
+		}
 	}
 	@bench host bench.{$DOMAIN}
 	handle @bench {
