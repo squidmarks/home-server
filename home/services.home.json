@@ -15,7 +15,7 @@
           "name": "Witness Studio",
           "description": "Household agents, missions and transactions (Google login)",
           "port": 3443,
-          "check": "http://127.0.0.1:4180/ping",
+          "check": "http://127.0.0.1:3703/",
           "sub": "witness.studio"
         }
       ]
