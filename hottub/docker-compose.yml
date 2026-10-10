@@ -55,7 +55,8 @@ services:
       OAUTH2_PROXY_COOKIE_DOMAINS: hottub.${DOMAIN}
       OAUTH2_PROXY_WHITELIST_DOMAINS: hottub.${DOMAIN}
       OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
-      OAUTH2_PROXY_EMAIL_DOMAIN: "*"
+      # Only the emails in this file may sign in. (Don't add EMAIL_DOMAIN "*":
+      # in oauth2-proxy it overrides the file and admits any Google account.)
       OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: /etc/oauth2-proxy/emails.txt
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
     volumes:
