@@ -36,7 +36,7 @@ The layout mirrors `~/infra` on each box (`./deploy.sh <host>` copies this repo 
 
 ## Services and ports
 
-Every service binds `127.0.0.1`. On `home`, Caddy (`caddy/`) publishes each one by name under the domain, on the tailnet IP only: the home page at the apex, studios at `<name>.studio.`, and `ha.`, `llm.`, `bench.`, `grafana.`, `mongo.`, `hottub.` (also on the LAN IP). On `server`, `tailscale serve` publishes the inference config page at `/llm/admin/` and the node and cAdvisor exporters `:9100`/`:9180` (see `tailscale/serve.sh`). The inference shim itself listens on `:8091` for the whole tailnet (studios reach it there).
+Every service binds `127.0.0.1`. On `home`, Caddy (`caddy/`) publishes each one by name under the domain, behind the single sign-on gate (`access/`; exceptions: Home Assistant, the hot tub's guest page, the inference API, agent webhooks), on the tailnet IP only: the home page at the apex, studios at `<name>.studio.`, and `ha.`, `llm.`, `bench.`, `grafana.`, `mongo.`, `hottub.` (also on the LAN IP). On `server`, `tailscale serve` publishes the inference config page at `/llm/admin/` and the node and cAdvisor exporters `:9100`/`:9180` (see `tailscale/serve.sh`). The inference shim itself listens on `:8091` for the whole tailnet (studios reach it there).
 
 ## Common tasks
 

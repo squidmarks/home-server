@@ -121,7 +121,8 @@ p{{color:#5b6f78}}a{{color:#0e8fb0}}@media(prefers-color-scheme:dark){{body{{bac
 p{{color:#93adb7}}a{{color:#38b6d6}}}}</style></head><body><main>
 <h1>No access to {app}</h1><p>You're signed in as <b>{email}</b>, which isn't on the list for this app.
 Ask the owner to add you on the access page.</p>
-<p><a href="https://auth.{domain}/oauth2/sign_out?rd=https://{domain}/">Sign in as someone else</a></p>
+<p><a href="https://auth.{domain}/oauth2/sign_out?rd=https%3A%2F%2Fauth.{domain}%2Fsigned-out">Sign out</a>
+(then sign in as someone else)</p>
 </main></body></html>"""
 
 

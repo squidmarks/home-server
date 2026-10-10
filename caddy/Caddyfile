@@ -1,4 +1,6 @@
-# Name-based routing for everything on the tailnet. Wildcard certificates
+# Name-based routing for everything on the tailnet. Every app except Home
+# Assistant (own login, app and webhooks), the hot tub's guest page and the
+# inference API is behind the single sign-on `gate` (access/). Wildcard certificates
 # (DNS challenge through Cloudflare): one for the domain and its tools
 # (ha., llm., grafana., ...), one for the studios under studio.<domain>.
 {
@@ -29,6 +31,29 @@
 			header_up X-Access-App {args[0]}
 		}
 		reverse_proxy {args[1]}
+	}
+}
+
+# Same, for upstreams that stream (server-sent events): never buffer.
+(gate_stream) {
+	route {
+		request_header -X-Auth-Request-Email
+		forward_auth 127.0.0.1:4182 {
+			uri /oauth2/auth
+			header_up X-Real-IP {remote_host}
+			copy_headers X-Auth-Request-Email
+			@unauthorized status 401
+			handle_response @unauthorized {
+				redir * https://auth.{$DOMAIN}/oauth2/start?rd={scheme}://{host}{uri}
+			}
+		}
+		forward_auth 127.0.0.1:3600 {
+			uri /authz
+			header_up X-Access-App {args[0]}
+		}
+		reverse_proxy {args[1]} {
+			flush_interval -1
+		}
 	}
 }
 
@@ -67,7 +92,7 @@ hottub.{$DOMAIN} {
 	# The home page: links to everything.
 	@home host {$DOMAIN}
 	handle @home {
-		reverse_proxy 127.0.0.1:3090
+		import gate home 127.0.0.1:3090
 	}
 
 	# --- Single sign-on: Google sign-in for every gated app, and the access
@@ -79,6 +104,13 @@ hottub.{$DOMAIN} {
 				header_up X-Real-IP {remote_host}
 				header_up X-Forwarded-Uri {uri}
 			}
+		}
+		# Where sign-out lands. Deliberately not gated: landing on a gated page
+		# would send you straight back through Google and sign you in again.
+		handle /signed-out {
+			header Content-Type "text/html; charset=utf-8"
+			header Cache-Control no-store
+			respond `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Signed out</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#f3f6f7;color:#0f2530}main{max-width:26em;padding:24px;text-align:center}h1{font-size:22px;margin:0 0 8px}p{color:#5b6f78}a{display:inline-block;margin-top:8px;background:#0e8fb0;color:#fff;text-decoration:none;font-weight:600;padding:10px 18px;border-radius:10px}@media(prefers-color-scheme:dark){body{background:#0b1d26;color:#e8f2f5}p{color:#93adb7}}</style></head><body><main><h1>You're signed out</h1><p>Signed out of every app on this domain.</p><a href="https://{$DOMAIN}/">Sign in again</a></main></body></html>` 200
 		}
 		handle {
 			redir https://{$DOMAIN}/
@@ -103,28 +135,35 @@ hottub.{$DOMAIN} {
 	@llm host llm.{$DOMAIN}
 	handle @llm {
 		redir / /admin/
-		reverse_proxy http://{$INFERENCE_FQDN}:8091
+		# The config page is gated; the API (/v1, /health, ...) stays open to the
+		# tailnet as before: programs (Claude desktop's gateway, Claude Code) can't
+		# do a browser sign-in.
+		@llm_admin path /admin /admin/*
+		handle @llm_admin {
+			import gate llm http://{$INFERENCE_FQDN}:8091
+		}
+		handle {
+			reverse_proxy http://{$INFERENCE_FQDN}:8091
+		}
 	}
 
 	# --- Monitoring and data (on this box) ---------------------------------
 	@grafana host grafana.{$DOMAIN}
 	handle @grafana {
-		reverse_proxy 127.0.0.1:3000
+		import gate grafana 127.0.0.1:3000
 	}
 	@mongo host mongo.{$DOMAIN}
 	handle @mongo {
-		reverse_proxy 127.0.0.1:3110
+		import gate mongo 127.0.0.1:3110
 	}
 	@dogs host dogs.{$DOMAIN}
 	handle @dogs {
-		# /api/stream is server-sent events: never buffer it.
-		reverse_proxy 127.0.0.1:3800 {
-			flush_interval -1
-		}
+		# /api/stream is server-sent events: the streaming gate never buffers.
+		import gate_stream dogs 127.0.0.1:3800
 	}
 	@bench host bench.{$DOMAIN}
 	handle @bench {
-		reverse_proxy 127.0.0.1:3400
+		import gate bench 127.0.0.1:3400
 	}
 
 	handle {
@@ -155,6 +194,18 @@ hottub.{$DOMAIN} {
 	}
 	handle @webhook_query {
 		reverse_proxy {args[0]}
+	}
+
+	# Sign out. Behind the proxy the studio's NextAuth session isn't the real
+	# login, so its signOut() (POST /api/auth/signout, then go to the "url" in
+	# the JSON reply) is answered here: clear the sso cookie, land signed out.
+	@signout {
+		method POST
+		path /api/auth/signout
+	}
+	handle @signout {
+		header Content-Type application/json
+		respond `{"url":"https://auth.{$DOMAIN}/oauth2/sign_out?rd=https%3A%2F%2Fauth.{$DOMAIN}%2Fsigned-out"}` 200
 	}
 
 	# The sso proxy's own endpoints on the studio's host: the web apps read
