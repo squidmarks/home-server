@@ -6,6 +6,32 @@
 	default_bind {$TAILNET_IP}
 }
 
+# --- Single sign-on gate (access/) -----------------------------------------
+# `import gate <app-id> <upstream>`: Google sign-in via the sso proxy (one
+# cookie for the whole domain), then the access service decides whether that
+# email may use <app-id> (rules on access.<domain>). Non-2xx answers from either
+# go back to the browser: 401 -> sign in, 403 -> a "no access" page.
+(gate) {
+	route {
+		# Only the sso proxy may say who the viewer is.
+		request_header -X-Auth-Request-Email
+		forward_auth 127.0.0.1:4182 {
+			uri /oauth2/auth
+			header_up X-Real-IP {remote_host}
+			copy_headers X-Auth-Request-Email
+			@unauthorized status 401
+			handle_response @unauthorized {
+				redir * https://auth.{$DOMAIN}/oauth2/start?rd={scheme}://{host}{uri}
+			}
+		}
+		forward_auth 127.0.0.1:3600 {
+			uri /authz
+			header_up X-Access-App {args[0]}
+		}
+		reverse_proxy {args[1]}
+	}
+}
+
 # --- The hot tub: hottub.<domain>, on the tailnet AND the LAN ---------------
 # The one name that also listens on the LAN IP (LAN_IP in caddy/.env), so
 # guests on the home Wi-Fi reach it without Tailscale; its DNS record points
@@ -61,6 +87,25 @@ hottub.{$DOMAIN} {
 	@home host {$DOMAIN}
 	handle @home {
 		reverse_proxy 127.0.0.1:3090
+	}
+
+	# --- Single sign-on: Google sign-in for every gated app, and the access
+	#     admin page (who may use which app). See access/.
+	@auth host auth.{$DOMAIN}
+	handle @auth {
+		handle /oauth2/* {
+			reverse_proxy 127.0.0.1:4182 {
+				header_up X-Real-IP {remote_host}
+				header_up X-Forwarded-Uri {uri}
+			}
+		}
+		handle {
+			redir https://{$DOMAIN}/
+		}
+	}
+	@access host access.{$DOMAIN}
+	handle @access {
+		import gate access 127.0.0.1:3600
 	}
 
 	# --- Home Assistant (a VM on this box, reached over the tailnet) ------
