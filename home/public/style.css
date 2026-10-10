@@ -12,6 +12,13 @@ header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
 h1 { margin: 0; font-size: 24px; }
 h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 26px 0 10px; }
 .note { color: var(--muted); font-size: 12px; margin-left: auto; }
+[hidden] { display: none !important; }
+.hdrlink {
+  display: inline-flex; align-items: center; gap: 6px; align-self: center; text-decoration: none;
+  color: var(--muted); font-size: 13px; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px;
+}
+.hdrlink:hover { color: var(--accent); border-color: var(--accent); }
+.hdrlink svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .card {
   display: block; text-decoration: none; color: inherit; background: var(--panel);

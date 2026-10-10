@@ -66,6 +66,9 @@ async function load() {
     config.fqdn = data.fqdn || "";
     config.tailnet = data.tailnet || "";
     config.domain = data.domain || "";
+    const access = document.getElementById("access");
+    access.hidden = !config.domain;
+    if (config.domain) access.href = `https://access.${config.domain}/`;
     document.title = data.title;
     document.getElementById("title").textContent = data.title;
     document.getElementById("checked").textContent = `checked ${new Date(data.checkedAt).toLocaleTimeString()}`;

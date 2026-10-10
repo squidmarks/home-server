@@ -14,7 +14,14 @@
   </head>
   <body>
     <main>
-      <header><h1 id="title">server</h1><span id="checked" class="note"></span></header>
+      <header>
+        <h1 id="title">server</h1><span id="checked" class="note"></span>
+        <!-- Who may use which app (access.<domain>); shown once the domain is known. -->
+        <a id="access" class="hdrlink" hidden title="Who may use which app">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14 9l2 2"/></svg>
+          Access
+        </a>
+      </header>
       <div id="groups" aria-live="polite"></div>
     </main>
     <script src="/app.js"></script>
