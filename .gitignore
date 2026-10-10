@@ -37,3 +37,4 @@ hottub/admin-emails.txt
 docs/security/*.FULL.md
 hottub/data/
 access/data/
+llm-shim/shim.env

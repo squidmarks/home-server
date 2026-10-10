@@ -21,6 +21,8 @@ Environment=VLLM_BASE_URL=http://172.18.0.1:8080
 Environment=SHELLY_URL=http://192.168.68.112
 Environment=POWER_IDLE_WATTS=50
 Environment=SWITCH_CMD=/home/geoff/infra/llama/switch-engine.sh
+# ADMIN_ALLOW_IPS (who besides this box may use /admin): gitignored, per box.
+EnvironmentFile=-/home/geoff/infra/llm-shim/shim.env
 ExecStart=/usr/bin/node server.mjs
 Restart=on-failure
 RestartSec=3

@@ -410,8 +410,25 @@ function runProfileSwitch(script, name) {
   });
 }
 
+// The config page and its /admin/* API can switch models and engines, so only
+// this box and the hosts in ADMIN_ALLOW_IPS (home: Caddy's gated llm.<domain>
+// and the bench) may use them. The inference API stays open to the tailnet.
+// Set in the gitignored shim.env next to llm-shim.service, e.g.
+//   ADMIN_ALLOW_IPS=<home's tailnet IPv4>,<home's tailnet IPv6>
+const ADMIN_ALLOW = new Set(["127.0.0.1", "::1",
+  ...(process.env.ADMIN_ALLOW_IPS || "").split(",").map(s => s.trim()).filter(Boolean)]);
+export function adminAllowed(remote) {
+  const ip = (remote || "").replace(/^::ffff:/, "");
+  return ADMIN_ALLOW.has(ip);
+}
+
 export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
+  if ((url.pathname === "/admin" || url.pathname.startsWith("/admin/")) && !adminAllowed(req.socket.remoteAddress)) {
+    res.writeHead(403, { "content-type": "text/plain" });
+    res.end("The inference admin page is at https://llm.<your domain>/admin/ (sign-in required).\n");
+    return;
+  }
   try {
     if (url.pathname === "/admin/status") {
       const states = {};

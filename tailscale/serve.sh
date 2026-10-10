@@ -22,7 +22,9 @@ case "$(hostname)" in
     # Studios, monitoring, Mongoku and the bench all run on home now.
     serve 9100 9100 "node exporter (scraped by Prometheus on home)"
     serve 9180 9180 "cAdvisor (scraped by Prometheus on home)"
-    path /llm 8091 "local inference shim (admin page at /llm/admin/)"
+    # No /llm path any more: the shim's admin page is only at the gated
+    # https://llm.<domain>/admin/ (served by Caddy on home). Remove an old one with
+    #   sudo tailscale serve --https=443 --set-path=/llm off
     ;;
   *) echo "no tailscale serve mapping for host $(hostname)" >&2; exit 1 ;;
 esac
