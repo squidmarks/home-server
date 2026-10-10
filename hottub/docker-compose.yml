@@ -1,5 +1,6 @@
 # The hot tub web app (code in the hottub-firmware repo, webapp/, synced to
-# ~/hottub/webapp by ../sync-hottub.sh) and its own Google login for /admin.
+# ~/hottub/webapp by ../sync-hottub.sh). Its /admin pages are behind the
+# domain's single sign-on (Caddy `gate`, rule "hottub-admin" on access.<domain>).
 #
 # Published by Caddy at hottub.<domain> on BOTH the tailnet IP and the LAN IP,
 # so guests on the home Wi-Fi reach it without Tailscale (the DNS record for
@@ -9,11 +10,8 @@
 # Settings live in a gitignored hottub/.env (compose reads it automatically):
 #   CONTROLLER_HOST=             the tub controller's LAN address (DHCP-reserved)
 #   CONTROLLER_API_KEY=          its ESPHome api_encryption_key
-#   ADMIN_EMAILS=                comma-separated admin emails
-#   DOMAIN=                      the domain (same as caddy/.env)
-#   GOOGLE_CLIENT_ID=            a Google OAuth client with
-#   GOOGLE_CLIENT_SECRET=          https://hottub.<domain>/oauth2/callback as a redirect URI
-#   OAUTH2_PROXY_COOKIE_SECRET=  32 random bytes, base64url
+#   ADMIN_EMAILS=                leave empty: who is admin is decided on access.<domain>
+#                                (set it only to narrow that further)
 # Run from ~/infra/hottub:  docker compose up -d --build
 name: hottub
 
@@ -32,33 +30,3 @@ services:
     volumes:
       # Temperature history (SQLite, 1-minute samples, 60 days). Gitignored.
       - ./data:/data
-
-  # Admin login only (Caddy asks it via forward_auth for /admin and
-  # /api/admin/*); the guest page has no login.
-  oauth2-proxy:
-    image: quay.io/oauth2-proxy/oauth2-proxy:latest
-    restart: unless-stopped
-    mem_limit: 100m
-    ports:
-      - "127.0.0.1:4181:4180"
-    environment:
-      OAUTH2_PROXY_PROVIDER: google
-      OAUTH2_PROXY_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      OAUTH2_PROXY_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      OAUTH2_PROXY_REDIRECT_URL: https://hottub.${DOMAIN}/oauth2/callback
-      OAUTH2_PROXY_UPSTREAMS: static://202
-      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
-      OAUTH2_PROXY_REVERSE_PROXY: "true"
-      OAUTH2_PROXY_COOKIE_NAME: _hottub_admin
-      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET}
-      OAUTH2_PROXY_COOKIE_SECURE: "true"
-      OAUTH2_PROXY_COOKIE_DOMAINS: hottub.${DOMAIN}
-      OAUTH2_PROXY_WHITELIST_DOMAINS: hottub.${DOMAIN}
-      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
-      # Only the emails in this file may sign in. (Don't add EMAIL_DOMAIN "*":
-      # in oauth2-proxy it overrides the file and admits any Google account.)
-      OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: /etc/oauth2-proxy/emails.txt
-      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
-    volumes:
-      # One admin email per line (gitignored; written by setup from ADMIN_EMAILS).
-      - ./admin-emails.txt:/etc/oauth2-proxy/emails.txt:ro

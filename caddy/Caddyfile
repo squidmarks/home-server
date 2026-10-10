@@ -37,36 +37,17 @@
 # guests on the home Wi-Fi reach it without Tailscale; its DNS record points
 # at the LAN IP and tailnet devices away from home use home's subnet route.
 # Anyone who reaches it can use the guest controls; /admin and /api/admin/*
-# need the hot tub's own Google login (oauth2-proxy on 127.0.0.1:4181).
+# go through the single sign-on gate (rule "hottub-admin" on access.<domain>).
 hottub.{$DOMAIN} {
 	bind {$TAILNET_IP} {$LAN_IP}
 	tls {
 		dns cloudflare {env.CF_API_TOKEN}
 	}
 
-	handle /oauth2/* {
-		reverse_proxy 127.0.0.1:4181 {
-			header_up X-Real-IP {remote_host}
-			header_up X-Forwarded-Uri {uri}
-		}
-	}
-
+	# Admin pages: single sign-on, rule "hottub-admin" on access.<domain>.
 	@admin path /admin /admin/* /admin.html /admin.js /api/admin/*
 	handle @admin {
-		route {
-			# Only oauth2-proxy may say who the viewer is.
-			request_header -X-Auth-Request-Email
-			forward_auth 127.0.0.1:4181 {
-				uri /oauth2/auth
-				header_up X-Real-IP {remote_host}
-				copy_headers X-Auth-Request-Email
-				@unauthorized status 401
-				handle_response @unauthorized {
-					redir * /oauth2/start?rd={scheme}://{host}{uri}
-				}
-			}
-			reverse_proxy 127.0.0.1:3500
-		}
+		import gate hottub-admin 127.0.0.1:3500
 	}
 
 	handle {
