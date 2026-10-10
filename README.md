@@ -36,7 +36,7 @@ The layout mirrors `~/infra` on each box (`./deploy.sh <host>` copies this repo 
 
 ## Services and ports
 
-Every service binds `127.0.0.1`. On `home`, Caddy (`caddy/`) publishes each one by name under the domain, behind the single sign-on gate (`access/`; exceptions: Home Assistant, the hot tub's guest page, the inference API, agent webhooks), on the tailnet IP only: the home page at the apex, studios at `<name>.studio.`, and `ha.`, `llm.`, `bench.`, `grafana.`, `mongo.`, `hottub.` (also on the LAN IP). On `server`, `tailscale serve` publishes the inference config page at `/llm/admin/` and the node and cAdvisor exporters `:9100`/`:9180` (see `tailscale/serve.sh`). The inference shim itself listens on `:8091` for the whole tailnet (studios reach it there).
+Every service binds `127.0.0.1`. On `home`, Caddy (`caddy/`) publishes each one by name under the domain, behind the single sign-on gate (`access/`; exceptions: Home Assistant, the hot tub's guest page, the inference API, agent webhooks), on the tailnet IP only: the home page at the apex, studios at `<name>.studio.`, and `ha.`, `llm.`, `bench.`, `grafana.`, `mongo.`, `hottub.` (also on the LAN IP). On `server`, `tailscale serve` publishes only the node and cAdvisor exporters `:9100`/`:9180` (see `tailscale/serve.sh`); the inference config page is reachable only through the gated `llm.<domain>` (the shim answers `/admin` to `server` and `home` alone, `ADMIN_ALLOW_IPS` in its gitignored `shim.env`). The inference shim itself listens on `:8091` for the whole tailnet (studios reach it there).
 
 ## Common tasks
 
@@ -45,7 +45,7 @@ Every service binds `127.0.0.1`. On `home`, Caddy (`caddy/`) publishes each one 
 ./sync-agent-studio.sh                       # copy the agent-studio code to the box, stamped with its commit
 ./sync-hottub.sh                             # copy the hot tub web app to home, rebuild and restart it
 ssh server 'cd ~/infra/home && docker compose up -d'         # apply a change to one stack
-ssh server '~/infra/tailscale/serve.sh'         # (re)publish services to the tailnet
+ssh server '~/infra/tailscale/serve.sh'         # (re)publish the exporters to the tailnet
 ssh server '~/infra/llama/profiles.sh list'     # model server profiles, and which one is running
 ssh server '~/infra/llama/profiles.sh set mtp3' # switch it (restarts llama-server, waits for the model)
 ```
