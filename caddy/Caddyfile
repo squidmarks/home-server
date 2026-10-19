@@ -158,6 +158,12 @@ hottub.{$DOMAIN} {
 	}
 	@dogs host dogs.{$DOMAIN}
 	handle @dogs {
+		# iOS fetches the home-screen icon without the browser's sign-in cookie, so the
+		# icon files (just images) are public; everything else stays behind the gate.
+		@icons path /apple-icon /icon /manifest.webmanifest
+		handle @icons {
+			reverse_proxy 127.0.0.1:3800
+		}
 		# /api/stream is server-sent events: the streaming gate never buffers.
 		import gate_stream dogs 127.0.0.1:3800
 	}
