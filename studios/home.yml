@@ -139,6 +139,12 @@ services:
       # A Spotify developer app, for spotify_search: catalog search only.
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      # Product feedback to the PM studio (ADR-0053 §8). The requester secret is the
+      # value the in-process engine derived from SECRETS_ENCRYPTION_KEY, which a
+      # runner never holds (ADR-0117 §7), so existing requester refs still match.
+      FEEDBACK_PM_URL: ${FEEDBACK_PM_URL:-}
+      FEEDBACK_PM_KEY: ${FEEDBACK_PM_KEY:-}
+      FEEDBACK_REQUESTER_SECRET: ${FEEDBACK_REQUESTER_SECRET:-}
 
   # Witness's engine runner (ADR-0117): Witness's tools, session resolver and its
   # Google data-access OAuth (inbound routes, served under /engine-inbound/witness
@@ -178,6 +184,12 @@ services:
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
       PUSHOVER_API_TOKEN: ${PUSHOVER_API_TOKEN}
+      # Product feedback to the PM studio (ADR-0053 §8). The requester secret is the
+      # value the in-process engine derived from SECRETS_ENCRYPTION_KEY, which a
+      # runner never holds (ADR-0117 §7), so existing requester refs still match.
+      FEEDBACK_PM_URL: ${FEEDBACK_PM_URL:-}
+      FEEDBACK_PM_KEY: ${FEEDBACK_PM_KEY:-}
+      FEEDBACK_REQUESTER_SECRET: ${FEEDBACK_REQUESTER_SECRET:-}
 
   home-studio-web:
     build:
