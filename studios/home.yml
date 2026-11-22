@@ -56,6 +56,11 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Other vendors models through OpenRouter (models with ids openrouter/...).
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Decision model key (ADR-0033); tenant secret of the same name wins.
+      DECISION_MODEL_API_KEY: ${DECISION_MODEL_API_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
       LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-}
       # Qwen3.8's template defaults to reasoning_effort "xhigh" (about 2x wall
       # clock, and sometimes a blank reply at the token cap). Pin medium; a
@@ -73,6 +78,12 @@ services:
       # The default for anything without a deployment of its own; each studio's
       # real URL comes from its deployment.json.
       STUDIO_PUBLIC_URL: https://home.${STUDIOS_DOMAIN}
+      # Where outside systems post into this box's notification threads (ADR-0054 §6):
+      # the Cloudflare tunnel route inbound.<domain>, which passes only that route.
+      INBOUND_PUBLIC_URL: ${INBOUND_PUBLIC_URL:-}
+      # Product feedback (ADR-0053 §8): the PM studio and this box's reporting key.
+      FEEDBACK_PM_URL: ${FEEDBACK_PM_URL:-}
+      FEEDBACK_PM_KEY: ${FEEDBACK_PM_KEY:-}
 
       # --- Home Studio engine ---------------------------------------------
       HOME_REQUIRE_AUTH: "false"
@@ -97,6 +108,7 @@ services:
       WITNESS_TOKEN_ENCRYPTION_KEY: ${WITNESS_TOKEN_ENCRYPTION_KEY}
       WITNESS_OAUTH_EDGE_URL: https://connect.${STUDIOS_DOMAIN}
       WITNESS_ADMIN_EMAILS: ${WITNESS_ADMIN_EMAILS}
+      WITNESS_PAYOUT_FORWARDERS: ${WITNESS_PAYOUT_FORWARDERS:-}
       # Transaction model v2: "1" keeps a still-running v1 agent working during the
       # cutover (accepts v1 leaves, ignores a supplied lifeState, coerces line-item
       # signs). Unset it once the v2 migration has been applied.
@@ -172,7 +184,12 @@ services:
     depends_on:
       - agent-service
 
-
+  # ONE Google login for every studio. Caddy asks it (forward_auth) before
+  # serving any studio web app, and routes each studio's /oauth2/* here. The
+  # cookie is set for the whole studio domain, so signing in once covers every
+  # studio; the redirect URI follows the host asked about, so each studio's
+  # https://<name>.<STUDIOS_DOMAIN>/oauth2/callback must be authorised on the
+  # Google login client (Console). Who may sign in: oauth2-proxy-emails.txt.
   witness-oauth-callback:
     build:
       context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}

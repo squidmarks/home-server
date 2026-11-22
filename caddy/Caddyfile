@@ -41,6 +41,8 @@
 		forward_auth 127.0.0.1:4182 {
 			uri /oauth2/auth
 			header_up X-Real-IP {remote_host}
+			header_up -Upgrade
+			header_up -Connection
 			copy_headers X-Auth-Request-Email
 			@unauthorized status 401
 			handle_response @unauthorized {
@@ -50,6 +52,8 @@
 		forward_auth 127.0.0.1:3600 {
 			uri /authz
 			header_up X-Access-App {args[0]}
+			header_up -Upgrade
+			header_up -Connection
 		}
 		reverse_proxy {args[1]} {
 			flush_interval -1
@@ -63,8 +67,8 @@
 # at the LAN IP and tailnet devices away from home use home's subnet route.
 # Anyone who reaches it can use the guest controls; /admin and /api/admin/*
 # go through the single sign-on gate (rule "hottub-admin" on access.<domain>).
-hottub.{$DOMAIN} {
-	bind {$TAILNET_IP} {$LAN_IP}
+hottub.{$DOMAIN}, hottub-guest.{$DOMAIN} {
+	bind {$TAILNET_IP} {$LAN_IP} {$GUEST_IP}
 	tls {
 		dns cloudflare {env.CF_API_TOKEN}
 	}
@@ -166,6 +170,12 @@ hottub.{$DOMAIN} {
 		}
 		# /api/stream is server-sent events: the streaming gate never buffers.
 		import gate_stream dogs 127.0.0.1:3800
+	}
+	# Hermes agents (one per person) behind Open WebUI; sign-in comes from the gate, which
+	# sets X-Auth-Request-Email for Open WebUI's trusted-header login. See ~/infra/hermes.
+	@hermes host hermes.{$DOMAIN}
+	handle @hermes {
+		import gate_stream hermes 127.0.0.1:3820
 	}
 	@bench host bench.{$DOMAIN}
 	handle @bench {
