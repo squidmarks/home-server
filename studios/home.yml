@@ -1,6 +1,7 @@
 # The agent studios on the `home` box (the NUC, which also runs Home Assistant
 # OS as a VM): ONE shared agent-service hosting every studio type, plus one web
-# front end per studio. The service loads each studio's engine (PROFILES) and
+# front end per studio. Each studio's engine runs in its own runner container
+# (home-runner, witness-runner; ADR-0117), which the service calls; the service
 # reads each studio's public URL from its rendered deployment.json
 # (studios/render-home-deployments.sh -> ~/agent-studio/home-deployments).
 # One platform database (agent_studio in the shared Mongo), partitioned by each
@@ -12,14 +13,15 @@
 # served by caddy/:
 #   Home Studio        home-agent-studio       home.
 #   Witness            witness-agent-studio    witness.
-#                                              connect. (Gmail/Drive OAuth callback)
+#                                              connect. (Gmail/Drive OAuth, witness-runner)
 #   shared agent-service                       api. (also the panels origin)
 #
 # Every studio web app is behind the domain's single sign-on (access/, checked by Caddy).
 #
 # Ports, all bound to 127.0.0.1 and reached through Caddy: agent-service 3001,
-# Home Studio 3702, Witness 3703, Witness OAuth
-# 8085, MCP server 3002 (public only through the Cloudflare tunnel).
+# Home Studio 3702, Witness 3703, witness-runner's inbound routes (Google OAuth)
+# 8085, MCP server 3002 (public only through the Cloudflare tunnel). The runners'
+# internal port (8790) is reached over the compose network only.
 #
 # Local models come from the inference box's shim (LOCAL_LLM_BASE_URL in
 # studios.env, http://<inference box>:8091/v1). A 503 with retry-after from it
@@ -49,7 +51,18 @@ services:
       LOG_LEVEL: info
       # The Investment Studio (benchmark-engine) is not here: it exists only for the
       # model bench, which starts its own throwaway copy per case (bench/, ADR-0020).
-      PROFILES: "@agent-studio/home-engine,@agent-studio/witness-engine"
+      # No engine loads in the service (ADR-0117): Home's and Witness's run in
+      # home-runner and witness-runner below, which this service calls with
+      # short-lived tokens signed by ENGINE_CALL_TOKEN_SIGNING_KEY (the runners
+      # hold only the public half). Make the pair with
+      # `npm run deploy:keygen -- --env` in the agent-studio checkout.
+      PROFILES: ""
+      REMOTE_ENGINES: home-agent-studio=http://home-runner:8790,witness-agent-studio=http://witness-runner:8790
+      ENGINE_CALL_TOKEN_SIGNING_KEY: ${ENGINE_CALL_TOKEN_SIGNING_KEY}
+      # The trusted hop (AS-0089): the web apps send it with the email the gate
+      # verified, and the service believes that email only with it. Must match the
+      # web apps' copy. Without it every REST call runs as the fallback user.
+      STUDIO_HOP_KEY: ${STUDIO_HOP_KEY}
       DEPLOYMENTS_DIR: /deployments
       DEFAULT_MODEL: ${DEFAULT_MODEL:-claude-sonnet-5}
       ROUTER_MODEL: ${DEFAULT_MODEL:-claude-sonnet-5}
@@ -85,7 +98,32 @@ services:
       FEEDBACK_PM_URL: ${FEEDBACK_PM_URL:-}
       FEEDBACK_PM_KEY: ${FEEDBACK_PM_KEY:-}
 
-      # --- Home Studio engine ---------------------------------------------
+      POSTMARK_API_KEY: ${POSTMARK_API_KEY}
+      POSTMARK_FROM_EMAIL: ${POSTMARK_FROM_EMAIL}
+      POSTMARK_FROM_NAME: ${POSTMARK_FROM_NAME}
+    volumes:
+      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/home-deployments:/deployments:ro
+    depends_on:
+      - home-runner
+      - witness-runner
+
+  # Home's engine runner (ADR-0117): Home's tools (Home Assistant, Spotify) and
+  # session resolver, from the agent-service image. Home's settings live here,
+  # not in the service. Only its internal port (8790) is used, over the compose
+  # network; Home declares no inbound routes.
+  home-runner:
+    image: studios-agent-service:latest
+    restart: unless-stopped
+    mem_limit: 512m
+    command: ["node", "packages/engine-runner/dist/main.js"]
+    environment:
+      NODE_ENV: production
+      ENGINE_MODULE: "@agent-studio/home-engine"
+      RUNNER_NAME: home-runner
+      AGENT_SERVICE_URL: http://agent-service:3001
+      ENGINE_CALL_TOKEN_PUBLIC_KEYS: ${ENGINE_CALL_TOKEN_PUBLIC_KEYS}
+      RUNNER_INTERNAL_PORT: "8790"
+      STUDIO_PUBLIC_URL: https://home.${STUDIOS_DOMAIN}
       HOME_REQUIRE_AUTH: "false"
       HOME_ADMIN_EMAILS: ${HOME_ADMIN_EMAILS:-}
       # A long-lived token for the "agent-studio" HA user (admin, not
@@ -93,34 +131,53 @@ services:
       HA_BASE_URL: ${HA_BASE_URL}
       HA_TOKEN: ${HA_TOKEN}
       HA_READONLY_ENTITIES: ${HA_READONLY_ENTITIES:-}
+      HA_TTS_ENTITY: ${HA_TTS_ENTITY:-}
+      HA_TTS_VOICE: ${HA_TTS_VOICE:-}
       # Where Home Assistant sends webhook calls. The studio's own name works:
       # HA resolves it through public DNS to this box's tailnet IP.
       HA_WEBHOOK_BASE_URL: ${HA_WEBHOOK_BASE_URL:-https://home.${STUDIOS_DOMAIN}}
-      # A Spotify developer app (developer.spotify.com/dashboard), for the Home
-      # Studio's spotify_search tool: catalog search only, no user login. Playing
-      # goes through Home Assistant's Sonos, which uses its own linked account.
+      # A Spotify developer app, for spotify_search: catalog search only.
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
 
-      # --- Witness engine -------------------------------------------------
+  # Witness's engine runner (ADR-0117): Witness's tools, session resolver and its
+  # Google data-access OAuth (inbound routes, served under /engine-inbound/witness
+  # on port 8791). The inbound port is published on 127.0.0.1:8085, the retired
+  # callback service's port, where Caddy's connect.<STUDIOS_DOMAIN> route goes; Caddy
+  # adds the /engine-inbound/witness prefix, so the URLs Google knows
+  # (https://connect.<STUDIOS_DOMAIN>/oauth/google/{start,callback}) are unchanged.
+  witness-runner:
+    image: studios-agent-service:latest
+    restart: unless-stopped
+    mem_limit: 768m
+    command: ["node", "packages/engine-runner/dist/main.js"]
+    ports:
+      - "127.0.0.1:8085:8791"
+    networks: [default, platform]
+    environment:
+      NODE_ENV: production
+      ENGINE_MODULE: "@agent-studio/witness-engine"
+      RUNNER_NAME: witness-runner
+      AGENT_SERVICE_URL: http://agent-service:3001
+      ENGINE_CALL_TOKEN_PUBLIC_KEYS: ${ENGINE_CALL_TOKEN_PUBLIC_KEYS}
+      RUNNER_INTERNAL_PORT: "8790"
+      RUNNER_INBOUND_PORT: "8791"
+      RUNNER_INBOUND_PREFIX: /engine-inbound/witness
+      STUDIO_PUBLIC_URL: https://witness.${STUDIOS_DOMAIN}
       WITNESS_REQUIRE_AUTH: "false"
       WITNESS_MONGO_URI: mongodb://witness:${WITNESS_DB_PASSWORD}@mongo:27017/witness?authSource=witness
+      # Witness's own key for its Google tokens, never SECRETS_ENCRYPTION_KEY.
       WITNESS_TOKEN_ENCRYPTION_KEY: ${WITNESS_TOKEN_ENCRYPTION_KEY}
+      # The base Google sees; Caddy maps it onto the runner's inbound prefix.
       WITNESS_OAUTH_EDGE_URL: https://connect.${STUDIOS_DOMAIN}
       WITNESS_ADMIN_EMAILS: ${WITNESS_ADMIN_EMAILS}
       WITNESS_PAYOUT_FORWARDERS: ${WITNESS_PAYOUT_FORWARDERS:-}
       # Transaction model v2: "1" keeps a still-running v1 agent working during the
-      # cutover (accepts v1 leaves, ignores a supplied lifeState, coerces line-item
-      # signs). Unset it once the v2 migration has been applied.
+      # cutover. Unset it once the v2 migration has been applied.
       WITNESS_V2_COMPAT: ${WITNESS_V2_COMPAT:-}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
       PUSHOVER_API_TOKEN: ${PUSHOVER_API_TOKEN}
-      POSTMARK_API_KEY: ${POSTMARK_API_KEY}
-      POSTMARK_FROM_EMAIL: ${POSTMARK_FROM_EMAIL}
-      POSTMARK_FROM_NAME: ${POSTMARK_FROM_NAME}
-    volumes:
-      - ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}/home-deployments:/deployments:ro
 
   home-studio-web:
     build:
@@ -146,6 +203,8 @@ services:
       # Caddy's forward_auth passes oauth2-proxy's verified email here (and strips any
       # client-sent copy), so server-side routes like /panel/<id> know the viewer.
       AUTH_PROXY_EMAIL_HEADER: X-Auth-Request-Email
+      # The same STUDIO_HOP_KEY as the agent-service's (AS-0089).
+      STUDIO_HOP_KEY: ${STUDIO_HOP_KEY}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: https://home.${STUDIOS_DOMAIN}
     depends_on:
@@ -179,36 +238,12 @@ services:
       # Caddy's forward_auth passes oauth2-proxy's verified email here (and strips any
       # client-sent copy), so server-side routes like /panel/<id> know the viewer.
       AUTH_PROXY_EMAIL_HEADER: X-Auth-Request-Email
+      # The same STUDIO_HOP_KEY as the agent-service's (AS-0089).
+      STUDIO_HOP_KEY: ${STUDIO_HOP_KEY}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: https://witness.${STUDIOS_DOMAIN}
     depends_on:
       - agent-service
-
-  # ONE Google login for every studio. Caddy asks it (forward_auth) before
-  # serving any studio web app, and routes each studio's /oauth2/* here. The
-  # cookie is set for the whole studio domain, so signing in once covers every
-  # studio; the redirect URI follows the host asked about, so each studio's
-  # https://<name>.<STUDIOS_DOMAIN>/oauth2/callback must be authorised on the
-  # Google login client (Console). Who may sign in: oauth2-proxy-emails.txt.
-  witness-oauth-callback:
-    build:
-      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
-      dockerfile: profiles/witness/oauth-callback/Dockerfile
-    image: witness-oauth-callback:latest
-    restart: unless-stopped
-    mem_limit: 512m
-    ports:
-      - "127.0.0.1:8085:8080"
-    networks: [default, platform]
-    environment:
-      PORT: "8080"
-      WITNESS_MONGO_URI: mongodb://witness:${WITNESS_DB_PASSWORD}@mongo:27017/witness?authSource=witness
-      WITNESS_TOKEN_ENCRYPTION_KEY: ${WITNESS_TOKEN_ENCRYPTION_KEY}
-      # Must be an authorised redirect URI (+ /oauth/google/callback) on the
-      # Google connection client (Console).
-      WITNESS_OAUTH_EDGE_URL: https://connect.${STUDIOS_DOMAIN}
-      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
-      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
 
   mcp-server:
     build:

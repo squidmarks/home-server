@@ -1,0 +1,13 @@
+# Paths on the box that the deleting sync must never remove: they exist only
+# there (deployment config, state, backups), not in the agent-studio checkout.
+# rsync "protect" filter rules, read by sync-agent-studio.sh.
+P /home-deployments/
+P /benchmark-run-state/
+P /benchmark-state/
+P /bench-baselines/
+P /.build-info
+P /.build-info.prev
+P /.git
+P *.bak*
+P /scripts/bench/package-lock.json
+P /scripts/bench/probes/

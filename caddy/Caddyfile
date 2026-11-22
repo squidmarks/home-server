@@ -267,6 +267,10 @@ hottub.{$DOMAIN}, hottub-guest.{$DOMAIN} {
 	# here mid-flow, so it can't sit behind the login either.
 	@connect host connect.studio.{$DOMAIN}
 	handle @connect {
+		# Witness's engine runner serves its OAuth routes under
+		# /engine-inbound/witness (ADR-0117); the paths Google knows stay
+		# /oauth/google/{start,callback} here.
+		rewrite * /engine-inbound/witness{uri}
 		reverse_proxy 127.0.0.1:8085
 	}
 
