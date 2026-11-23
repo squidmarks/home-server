@@ -94,6 +94,10 @@ services:
       # Where outside systems post into this box's notification threads (ADR-0054 §6):
       # the Cloudflare tunnel route inbound.<domain>, which passes only that route.
       INBOUND_PUBLIC_URL: ${INBOUND_PUBLIC_URL:-}
+      # Service capabilities this agent-service loads (ADR-0119). Product feedback
+      # runs here, for every studio; it derives requester refs from
+      # SECRETS_ENCRYPTION_KEY, so no FEEDBACK_REQUESTER_SECRET is needed.
+      SERVICE_CAPABILITIES: product-feedback
       # Product feedback (ADR-0053 §8): the PM studio and this box's reporting key.
       FEEDBACK_PM_URL: ${FEEDBACK_PM_URL:-}
       FEEDBACK_PM_KEY: ${FEEDBACK_PM_KEY:-}
@@ -139,12 +143,8 @@ services:
       # A Spotify developer app, for spotify_search: catalog search only.
       SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
-      # Product feedback to the PM studio (ADR-0053 §8). The requester secret is the
-      # value the in-process engine derived from SECRETS_ENCRYPTION_KEY, which a
-      # runner never holds (ADR-0117 §7), so existing requester refs still match.
-      FEEDBACK_PM_URL: ${FEEDBACK_PM_URL:-}
-      FEEDBACK_PM_KEY: ${FEEDBACK_PM_KEY:-}
-      FEEDBACK_REQUESTER_SECRET: ${FEEDBACK_REQUESTER_SECRET:-}
+      # No product-feedback settings: feedback is a service capability, run by the
+      # agent-service (ADR-0119).
 
   # Witness's engine runner (ADR-0117): Witness's tools, session resolver and its
   # Google data-access OAuth (inbound routes, served under /engine-inbound/witness
@@ -184,12 +184,8 @@ services:
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
       PUSHOVER_API_TOKEN: ${PUSHOVER_API_TOKEN}
-      # Product feedback to the PM studio (ADR-0053 §8). The requester secret is the
-      # value the in-process engine derived from SECRETS_ENCRYPTION_KEY, which a
-      # runner never holds (ADR-0117 §7), so existing requester refs still match.
-      FEEDBACK_PM_URL: ${FEEDBACK_PM_URL:-}
-      FEEDBACK_PM_KEY: ${FEEDBACK_PM_KEY:-}
-      FEEDBACK_REQUESTER_SECRET: ${FEEDBACK_REQUESTER_SECRET:-}
+      # No product-feedback settings: feedback is a service capability, run by the
+      # agent-service (ADR-0119).
 
   home-studio-web:
     build:
