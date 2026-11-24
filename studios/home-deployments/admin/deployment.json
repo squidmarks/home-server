@@ -1,0 +1,6 @@
+{
+  "name": "admin",
+  "engine": "admin-studio",
+  "applicationId": "admin-studio",
+  "studioPublicUrl": "https://admin.{domain}"
+}

@@ -14,12 +14,13 @@
 #   Home Studio        home-agent-studio       home.
 #   Witness            witness-agent-studio    witness.
 #                                              connect. (Gmail/Drive OAuth, witness-runner)
+#   Admin Studio       admin-studio            admin. (platform admins: studios, keys)
 #   shared agent-service                       api. (also the panels origin)
 #
 # Every studio web app is behind the domain's single sign-on (access/, checked by Caddy).
 #
 # Ports, all bound to 127.0.0.1 and reached through Caddy: agent-service 3001,
-# Home Studio 3702, Witness 3703, witness-runner's inbound routes (Google OAuth)
+# Home Studio 3702, Witness 3703, Admin Studio 3704, witness-runner's inbound routes (Google OAuth)
 # 8085, MCP server 3002 (public only through the Cloudflare tunnel). The runners'
 # internal port (8790) is reached over the compose network only.
 #
@@ -57,7 +58,16 @@ services:
       # hold only the public half). Make the pair with
       # `npm run deploy:keygen -- --env` in the agent-studio checkout.
       PROFILES: ""
-      REMOTE_ENGINES: home-agent-studio=http://home-runner:8790,witness-agent-studio=http://witness-runner:8790
+      REMOTE_ENGINES: home-agent-studio=http://home-runner:8790,witness-agent-studio=http://witness-runner:8790,admin-studio=http://admin-runner:8790
+      # The platform-admin API (ADR-0121 §5, ADR-0125): it serves only Admin
+      # Studio, and only a platform admin. Nobody here has a sign-in token with a
+      # role, so the admins are named by email: the service admits a listed email
+      # only when the admin web app sent it over the trusted hop (STUDIO_HOP_KEY),
+      # never from the browser. The role is still required: without both
+      # settings the API is off. Comma-separated whole addresses.
+      PLATFORM_ADMIN_APPLICATION_ID: admin-studio
+      PLATFORM_ADMIN_ROLE: ${PLATFORM_ADMIN_ROLE:-platform-admin}
+      PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
       ENGINE_CALL_TOKEN_SIGNING_KEY: ${ENGINE_CALL_TOKEN_SIGNING_KEY}
       # The trusted hop (AS-0089): the web apps send it with the email the gate
       # verified, and the service believes that email only with it. Must match the
@@ -82,8 +92,8 @@ services:
       MONGO_URI: mongodb://agent_studio:${STUDIOS_DB_PASSWORD}@mongo:27017/?authSource=agent_studio
       MONGO_DB: agent_studio
       # Every studio's web origin (comma-separated for CORS, space-separated for frames).
-      CORS_ORIGINS: https://home.${STUDIOS_DOMAIN},https://witness.${STUDIOS_DOMAIN},https://invest.${STUDIOS_DOMAIN}
-      PANEL_FRAME_ANCESTORS: https://home.${STUDIOS_DOMAIN} https://witness.${STUDIOS_DOMAIN} https://invest.${STUDIOS_DOMAIN}
+      CORS_ORIGINS: https://home.${STUDIOS_DOMAIN},https://witness.${STUDIOS_DOMAIN},https://invest.${STUDIOS_DOMAIN},https://admin.${STUDIOS_DOMAIN}
+      PANEL_FRAME_ANCESTORS: https://home.${STUDIOS_DOMAIN} https://witness.${STUDIOS_DOMAIN} https://invest.${STUDIOS_DOMAIN} https://admin.${STUDIOS_DOMAIN}
       PANELS_PUBLIC_URL: https://api.${STUDIOS_DOMAIN}
       PANEL_TOKEN_SECRET: ${PANEL_TOKEN_SECRET}
       SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY}
@@ -110,6 +120,7 @@ services:
     depends_on:
       - home-runner
       - witness-runner
+      - admin-runner
 
   # Home's engine runner (ADR-0117): Home's tools (Home Assistant, Spotify) and
   # session resolver, from the agent-service image. Home's settings live here,
@@ -187,6 +198,31 @@ services:
       # No product-feedback settings: feedback is a service capability, run by the
       # agent-service (ADR-0119).
 
+  # Admin Studio's engine runner (ADR-0121 §6): lists the studios, issues and
+  # revokes their registration keys, switches them off and on, and watches the
+  # runners. Run exactly ONE: a newly issued key waits in this process's memory
+  # until the Studios panel shows it once. It is the service's one configured
+  # studio (REMOTE_ENGINES above); every other studio can register itself.
+  admin-runner:
+    image: studios-agent-service:latest
+    restart: unless-stopped
+    mem_limit: 384m
+    command: ["node", "packages/engine-runner/dist/main.js"]
+    environment:
+      NODE_ENV: production
+      ENGINE_MODULE: "@agent-studio/admin-engine"
+      RUNNER_NAME: admin-runner
+      AGENT_SERVICE_URL: http://agent-service:3001
+      ENGINE_CALL_TOKEN_PUBLIC_KEYS: ${ENGINE_CALL_TOKEN_PUBLIC_KEYS}
+      RUNNER_INTERNAL_PORT: "8790"
+      STUDIO_PUBLIC_URL: https://admin.${STUDIOS_DOMAIN}
+      # Behind the sign-on there is no verified token (ADR-0125), as for Home and
+      # Witness. Who may act as a platform admin is the service's decision
+      # (PLATFORM_ADMIN_EMAILS), not this studio's.
+      ADMIN_REQUIRE_AUTH: "false"
+      # Optional: who to email when a runner goes silent.
+      ADMIN_STUDIO_NOTIFY: ${ADMIN_STUDIO_NOTIFY:-}
+
   home-studio-web:
     build:
       context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
@@ -250,6 +286,34 @@ services:
       STUDIO_HOP_KEY: ${STUDIO_HOP_KEY}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: https://witness.${STUDIOS_DOMAIN}
+    depends_on:
+      - agent-service
+
+  admin-studio-web:
+    build:
+      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
+      dockerfile: apps/studio-web/Dockerfile
+      args:
+        APP_PROFILE: admin
+        NEXT_PUBLIC_AGENT_SERVICE_URL: https://api.${STUDIOS_DOMAIN}
+        NEXT_PUBLIC_AUTH_ENABLED: "false"
+        NEXT_PUBLIC_APPLICATION_ID: admin-studio
+        NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
+    image: admin-studio-web:latest
+    restart: unless-stopped
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:3704:3000"
+    environment:
+      NODE_ENV: production
+      AGENT_SERVICE_URL: http://agent-service:3001
+      # The sign-on's verified email (Caddy's forward_auth). With STUDIO_HOP_KEY it
+      # is what the service checks against PLATFORM_ADMIN_EMAILS.
+      AUTH_PROXY_EMAIL_HEADER: X-Auth-Request-Email
+      # The same STUDIO_HOP_KEY as the agent-service's (AS-0089).
+      STUDIO_HOP_KEY: ${STUDIO_HOP_KEY}
+      NEXTAUTH_SECRET: ${ADMIN_NEXTAUTH_SECRET:-${NEXTAUTH_SECRET}}
+      NEXTAUTH_URL: https://admin.${STUDIOS_DOMAIN}
     depends_on:
       - agent-service
 

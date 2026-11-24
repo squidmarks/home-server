@@ -255,6 +255,13 @@ hottub.{$DOMAIN}, hottub-guest.{$DOMAIN} {
 	handle @witness {
 		import studio 127.0.0.1:3703 witness-studio
 	}
+	# Admin Studio (ADR-0121 §6): rule "admin-studio" on access.<domain> decides
+	# who reaches it; the agent-service decides who is a platform admin
+	# (PLATFORM_ADMIN_EMAILS, ADR-0125).
+	@admin host admin.studio.{$DOMAIN}
+	handle @admin {
+		import studio 127.0.0.1:3704 admin-studio
+	}
 
 	# The shared agent-service: the studio web apps call it from the browser
 	# (Socket.IO and REST), so it isn't behind the login page; it serves only
