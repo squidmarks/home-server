@@ -106,8 +106,11 @@ services:
       INBOUND_PUBLIC_URL: ${INBOUND_PUBLIC_URL:-}
       # Service capabilities this agent-service loads (ADR-0119). Product feedback
       # runs here, for every studio; it derives requester refs from
-      # SECRETS_ENCRYPTION_KEY, so no FEEDBACK_REQUESTER_SECRET is needed.
-      SERVICE_CAPABILITIES: product-feedback
+      # SECRETS_ENCRYPTION_KEY, so no FEEDBACK_REQUESTER_SECRET is needed. Web
+      # research (search and fetch) runs here too since AS-0125 Part C, with
+      # TAVILY_API_KEY above for every studio; without it in this list, Home and
+      # Witness lose their web tools.
+      SERVICE_CAPABILITIES: product-feedback,web-research
       # Product feedback (ADR-0053 §8): the PM studio and this box's reporting key.
       FEEDBACK_PM_URL: ${FEEDBACK_PM_URL:-}
       FEEDBACK_PM_KEY: ${FEEDBACK_PM_KEY:-}
