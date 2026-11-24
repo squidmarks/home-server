@@ -58,7 +58,7 @@ services:
       # hold only the public half). Make the pair with
       # `npm run deploy:keygen -- --env` in the agent-studio checkout.
       PROFILES: ""
-      REMOTE_ENGINES: witness-agent-studio=http://witness-runner:8790,admin-studio=http://admin-runner:8790
+      REMOTE_ENGINES: admin-studio=http://admin-runner:8790
       # The platform-admin API (ADR-0121 §5, ADR-0125): it serves only Admin
       # Studio, and only a platform admin. Nobody here has a sign-in token with a
       # role, so the admins are named by email: the service admits a listed email
@@ -186,6 +186,11 @@ services:
       AGENT_SERVICE_URL: http://agent-service:3001
       ENGINE_CALL_TOKEN_PUBLIC_KEYS: ${ENGINE_CALL_TOKEN_PUBLIC_KEYS}
       RUNNER_INTERNAL_PORT: "8790"
+      # Witness registers itself (ADR-0121) with the key Admin Studio issued
+      # for it, so it is no longer in the service's REMOTE_ENGINES.
+      RUNNER_REGISTRATION_KEY: ${WITNESS_REGISTRATION_KEY:?add the key Admin Studio issued for witness-agent-studio to studios.env}
+      RUNNER_ADVERTISE_URL: http://witness-runner:8790
+      RUNNER_APPLICATION_ID: witness-agent-studio
       RUNNER_INBOUND_PORT: "8791"
       RUNNER_INBOUND_PREFIX: /engine-inbound/witness
       STUDIO_PUBLIC_URL: https://witness.${STUDIOS_DOMAIN}
