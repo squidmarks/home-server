@@ -28,6 +28,11 @@
 # studios.env, http://<inference box>:8091/v1). A 503 with retry-after from it
 # means a model swap is in progress, not a failure.
 #
+# Witness's and Home's runner and web images come from their own repositories
+# (ADR-0123), built on the Mac and loaded here: ./studios/ship-studio-images.sh.
+# The agent service, Admin Studio and the MCP server still build from the synced
+# agent-studio checkout.
+#
 # Run on the box after studios/setup-home.sh and studios/render-home-deployments.sh:
 #   cd ~/agent-studio && docker compose -f ~/infra/studios/home.yml --env-file studios.env up -d --build
 
@@ -126,17 +131,18 @@ services:
       - admin-runner
 
   # Home's engine runner (ADR-0117): Home's tools (Home Assistant, Spotify) and
-  # session resolver, from the agent-service image. Home's settings live here,
+  # session resolver, from its own image (below). Home's settings live here,
   # not in the service. Only its internal port (8790) is used, over the compose
   # network; Home declares no inbound routes.
   home-runner:
-    image: studios-agent-service:latest
+    # Built from the studio's own repository (studio-home, ADR-0123) on
+    # the Mac and loaded here by studios/ship-studio-images.sh; no build on the box.
+    # The image sets ENGINE_MODULE and starts the runner itself.
+    image: studio-home-runner:latest
     restart: unless-stopped
     mem_limit: 512m
-    command: ["node", "packages/engine-runner/dist/main.js"]
     environment:
       NODE_ENV: production
-      ENGINE_MODULE: "@agent-studio/home-engine"
       RUNNER_NAME: home-runner
       AGENT_SERVICE_URL: http://agent-service:3001
       ENGINE_CALL_TOKEN_PUBLIC_KEYS: ${ENGINE_CALL_TOKEN_PUBLIC_KEYS}
@@ -172,16 +178,17 @@ services:
   # adds the /engine-inbound/witness prefix, so the URLs Google knows
   # (https://connect.<STUDIOS_DOMAIN>/oauth/google/{start,callback}) are unchanged.
   witness-runner:
-    image: studios-agent-service:latest
+    # Built from the studio's own repository (studio-witness, ADR-0123) on
+    # the Mac and loaded here by studios/ship-studio-images.sh; no build on the box.
+    # The image sets ENGINE_MODULE and starts the runner itself.
+    image: studio-witness-runner:latest
     restart: unless-stopped
     mem_limit: 768m
-    command: ["node", "packages/engine-runner/dist/main.js"]
     ports:
       - "127.0.0.1:8085:8791"
     networks: [default, platform]
     environment:
       NODE_ENV: production
-      ENGINE_MODULE: "@agent-studio/witness-engine"
       RUNNER_NAME: witness-runner
       AGENT_SERVICE_URL: http://agent-service:3001
       ENGINE_CALL_TOKEN_PUBLIC_KEYS: ${ENGINE_CALL_TOKEN_PUBLIC_KEYS}
@@ -237,19 +244,10 @@ services:
       ADMIN_STUDIO_NOTIFY: ${ADMIN_STUDIO_NOTIFY:-}
 
   home-studio-web:
-    build:
-      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
-      dockerfile: apps/studio-web/Dockerfile
-      args:
-        APP_PROFILE: home
-        NEXT_PUBLIC_AGENT_SERVICE_URL: https://api.${STUDIOS_DOMAIN}
-        NEXT_PUBLIC_AUTH_ENABLED: "false"
-        NEXT_PUBLIC_APPLICATION_ID: home-agent-studio
-        # The public MCP address shown for this studio's MCP servers (the tunnel's
-        # hostname), e.g. https://mcp.example.com -> <it>/mcp/servers/<id>.
-        NEXT_PUBLIC_MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
-        NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
-    image: home-studio-web:latest
+    # Built from studio-home's web.Dockerfile on the Mac and loaded here
+    # by studios/ship-studio-images.sh (ADR-0123). Its build arguments, the
+    # public URLs (https://api.<STUDIOS_DOMAIN>, MCP_PUBLIC_URL), are baked in there.
+    image: studio-home-web:latest
     restart: unless-stopped
     mem_limit: 1g
     ports:
@@ -268,19 +266,10 @@ services:
       - agent-service
 
   witness-web:
-    build:
-      context: ${AGENT_STUDIO_DIR:-${HOME}/agent-studio}
-      dockerfile: apps/studio-web/Dockerfile
-      args:
-        APP_PROFILE: witness
-        NEXT_PUBLIC_AGENT_SERVICE_URL: https://api.${STUDIOS_DOMAIN}
-        NEXT_PUBLIC_AUTH_ENABLED: "false"
-        NEXT_PUBLIC_APPLICATION_ID: witness-agent-studio
-        # The public MCP address shown for this studio's MCP servers (the tunnel's
-        # hostname), e.g. https://mcp.example.com -> <it>/mcp/servers/<id>.
-        NEXT_PUBLIC_MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
-        NEXT_PUBLIC_BUILD_VERSION: ${BUILD_VERSION:-dev}
-    image: witness-web:latest
+    # Built from studio-witness's web.Dockerfile on the Mac and loaded here
+    # by studios/ship-studio-images.sh (ADR-0123). Its build arguments, the
+    # public URLs (https://api.<STUDIOS_DOMAIN>, MCP_PUBLIC_URL), are baked in there.
+    image: studio-witness-web:latest
     restart: unless-stopped
     mem_limit: 1g
     ports:
